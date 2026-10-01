@@ -1,7 +1,7 @@
 {
   "runtime": "v24.19.0",
   "platform": "win32/x64",
-  "timestamp": "2026-10-01T21:44:07.660Z",
+  "timestamp": "2026-10-01T22:22:32.085Z",
   "note": "CPU simulation and JSON only; no rendering, transport, mobile Safari or FPS measured. Bandwidth excludes WebSocket/TLS overhead and compression. Budgets are desktop regression targets, not device guarantees.",
   "desktopBudgets": {
     "simulationP95Ms": 10,
@@ -26,22 +26,22 @@
         "average": 120
       },
       "simulationMs": {
-        "average": 0.493,
-        "p95": 0.738,
-        "max": 1.036
+        "average": 0.483,
+        "p95": 0.726,
+        "max": 1.021
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.334,
-        "p95": 0.484,
-        "max": 0.818
+        "average": 0.338,
+        "p95": 0.491,
+        "max": 0.744
       },
       "snapshotBytesPerClient": {
-        "average": 46785,
-        "p95": 49175
+        "average": 51097,
+        "p95": 53662
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 233925,
-        "p95": 245875
+        "average": 255485,
+        "p95": 268310
       },
       "combat": {
         "shots": 0,
@@ -66,33 +66,33 @@
       "simulatedSeconds": 100,
       "units": {
         "initial": 120,
-        "minimum": 4,
-        "final": 4,
-        "average": 33.269
+        "minimum": 14,
+        "final": 14,
+        "average": 34.75
       },
       "simulationMs": {
-        "average": 0.224,
-        "p95": 0.917,
-        "max": 10.684
+        "average": 0.203,
+        "p95": 0.862,
+        "max": 9.075
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.207,
-        "p95": 0.791,
-        "max": 1.725
+        "average": 0.192,
+        "p95": 0.762,
+        "max": 1.595
       },
       "snapshotBytesPerClient": {
-        "average": 16767,
-        "p95": 49376
+        "average": 17311,
+        "p95": 52243
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 83837,
-        "p95": 246880
+        "average": 86556,
+        "p95": 261215
       },
       "combat": {
-        "shots": 481,
-        "explosions": 125,
+        "shots": 426,
+        "explosions": 84,
         "peakSuppression": 1,
-        "casualties": 116
+        "casualties": 106
       },
       "withinDesktopBudgets": {
         "simulation": true,
@@ -116,22 +116,22 @@
         "average": 120
       },
       "simulationMs": {
-        "average": 0.501,
-        "p95": 0.901,
-        "max": 1.822
+        "average": 0.482,
+        "p95": 0.871,
+        "max": 1.831
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.309,
-        "p95": 0.474,
-        "max": 0.933
+        "average": 0.311,
+        "p95": 0.459,
+        "max": 0.859
       },
       "snapshotBytesPerClient": {
-        "average": 47219,
-        "p95": 50548
+        "average": 51588,
+        "p95": 55195
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 236095,
-        "p95": 252740
+        "average": 257939,
+        "p95": 275975
       },
       "combat": {
         "shots": 0,
@@ -150,6 +150,96 @@
       "terrainRegions": 56,
       "buildings": 14,
       "occupiableBuildings": 14,
+      "scenario": "120 initially: nine-class combined-arms combat",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 10,
+        "final": 10,
+        "average": 38.846
+      },
+      "simulationMs": {
+        "average": 0.185,
+        "p95": 0.832,
+        "max": 1.126
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.188,
+        "p95": 0.612,
+        "max": 0.937
+      },
+      "snapshotBytesPerClient": {
+        "average": 20991,
+        "p95": 56196
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 104957,
+        "p95": 280980
+      },
+      "combat": {
+        "shots": 461,
+        "explosions": 91,
+        "peakSuppression": 1,
+        "casualties": 110
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "dimensions": "3200x2000",
+      "terrainRegions": 112,
+      "buildings": 28,
+      "occupiableBuildings": 28,
+      "scenario": "120 sustained: ground AA, movement and visibility",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 120,
+        "final": 120,
+        "average": 120
+      },
+      "simulationMs": {
+        "average": 0.498,
+        "p95": 0.891,
+        "max": 1.77
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.358,
+        "p95": 0.588,
+        "max": 1.104
+      },
+      "snapshotBytesPerClient": {
+        "average": 52955,
+        "p95": 57674
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 264776,
+        "p95": 288370
+      },
+      "combat": {
+        "shots": 0,
+        "explosions": 0,
+        "peakSuppression": 0,
+        "casualties": 0
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "dimensions": "3200x2000",
+      "terrainRegions": 112,
+      "buildings": 28,
+      "occupiableBuildings": 28,
       "scenario": "120 initially: nine-class combined-arms combat",
       "seed": 20261001,
       "ticks": 1000,
@@ -158,121 +248,31 @@
         "initial": 120,
         "minimum": 5,
         "final": 5,
-        "average": 37.178
-      },
-      "simulationMs": {
-        "average": 0.195,
-        "p95": 0.868,
-        "max": 1.526
-      },
-      "snapshotAndSerializationMsPerClient": {
-        "average": 0.188,
-        "p95": 0.625,
-        "max": 1.037
-      },
-      "snapshotBytesPerClient": {
-        "average": 19250,
-        "p95": 51722
-      },
-      "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 96250,
-        "p95": 258610
-      },
-      "combat": {
-        "shots": 482,
-        "explosions": 110,
-        "peakSuppression": 1,
-        "casualties": 115
-      },
-      "withinDesktopBudgets": {
-        "simulation": true,
-        "snapshot": true
-      }
-    },
-    {
-      "mapId": "frontera-de-los-siete-pasos",
-      "dimensions": "3200x2000",
-      "terrainRegions": 112,
-      "buildings": 28,
-      "occupiableBuildings": 28,
-      "scenario": "120 sustained: ground AA, movement and visibility",
-      "seed": 20261001,
-      "ticks": 1000,
-      "simulatedSeconds": 100,
-      "units": {
-        "initial": 120,
-        "minimum": 120,
-        "final": 120,
-        "average": 120
-      },
-      "simulationMs": {
-        "average": 0.471,
-        "p95": 0.875,
-        "max": 1.464
-      },
-      "snapshotAndSerializationMsPerClient": {
-        "average": 0.314,
-        "p95": 0.477,
-        "max": 0.929
-      },
-      "snapshotBytesPerClient": {
-        "average": 48417,
-        "p95": 52747
-      },
-      "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 242087,
-        "p95": 263735
-      },
-      "combat": {
-        "shots": 0,
-        "explosions": 0,
-        "peakSuppression": 0,
-        "casualties": 0
-      },
-      "withinDesktopBudgets": {
-        "simulation": true,
-        "snapshot": true
-      }
-    },
-    {
-      "mapId": "frontera-de-los-siete-pasos",
-      "dimensions": "3200x2000",
-      "terrainRegions": 112,
-      "buildings": 28,
-      "occupiableBuildings": 28,
-      "scenario": "120 initially: nine-class combined-arms combat",
-      "seed": 20261001,
-      "ticks": 1000,
-      "simulatedSeconds": 100,
-      "units": {
-        "initial": 120,
-        "minimum": 8,
-        "final": 8,
-        "average": 44.234
+        "average": 43.224
       },
       "simulationMs": {
         "average": 0.232,
-        "p95": 0.891,
-        "max": 1.639
+        "p95": 0.872,
+        "max": 2.007
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.212,
-        "p95": 0.616,
-        "max": 1.035
+        "average": 0.222,
+        "p95": 0.621,
+        "max": 1.156
       },
       "snapshotBytesPerClient": {
-        "average": 23289,
-        "p95": 57711
+        "average": 25318,
+        "p95": 61217
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 116446,
-        "p95": 288555
+        "average": 126590,
+        "p95": 306085
       },
       "combat": {
-        "shots": 520,
-        "explosions": 95,
+        "shots": 510,
+        "explosions": 104,
         "peakSuppression": 1,
-        "casualties": 112
+        "casualties": 115
       },
       "withinDesktopBudgets": {
         "simulation": true,
@@ -297,21 +297,21 @@
       },
       "simulationMs": {
         "average": 0.52,
-        "p95": 0.893,
-        "max": 1.319
+        "p95": 0.878,
+        "max": 1.595
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.383,
-        "p95": 0.574,
-        "max": 1.093
+        "average": 0.398,
+        "p95": 0.629,
+        "max": 0.972
       },
       "snapshotBytesPerClient": {
-        "average": 56177,
-        "p95": 62674
+        "average": 61851,
+        "p95": 68961
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 280886,
-        "p95": 313370
+        "average": 309257,
+        "p95": 344805
       },
       "combat": {
         "shots": 0,
@@ -338,29 +338,29 @@
         "initial": 120,
         "minimum": 15,
         "final": 15,
-        "average": 56.063
+        "average": 55.205
       },
       "simulationMs": {
-        "average": 0.309,
-        "p95": 0.897,
-        "max": 1.115
+        "average": 0.31,
+        "p95": 0.894,
+        "max": 1.514
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.292,
-        "p95": 0.654,
-        "max": 1.015
+        "average": 0.304,
+        "p95": 0.717,
+        "max": 1.372
       },
       "snapshotBytesPerClient": {
-        "average": 35494,
-        "p95": 64179
+        "average": 38121,
+        "p95": 68814
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 177471,
-        "p95": 320895
+        "average": 190607,
+        "p95": 344070
       },
       "combat": {
-        "shots": 504,
-        "explosions": 72,
+        "shots": 470,
+        "explosions": 59,
         "peakSuppression": 1,
         "casualties": 105
       },
@@ -376,11 +376,11 @@
       "commands": 24,
       "unitsPerCommand": 60,
       "routesWithDetours": 1332,
-      "firstGroupOrderMs": 5.178,
+      "firstGroupOrderMs": 5.145,
       "groupOrderMs": {
-        "average": 2.101,
-        "p95": 5.81,
-        "max": 6.389
+        "average": 1.988,
+        "p95": 5.457,
+        "max": 5.669
       },
       "withinDesktopBudget": true
     },
@@ -389,11 +389,11 @@
       "commands": 24,
       "unitsPerCommand": 60,
       "routesWithDetours": 1368,
-      "firstGroupOrderMs": 12.559,
+      "firstGroupOrderMs": 11.569,
       "groupOrderMs": {
-        "average": 4.538,
-        "p95": 14.029,
-        "max": 14.391
+        "average": 4.09,
+        "p95": 12.086,
+        "max": 12.718
       },
       "withinDesktopBudget": true
     },
@@ -402,11 +402,11 @@
       "commands": 24,
       "unitsPerCommand": 60,
       "routesWithDetours": 1440,
-      "firstGroupOrderMs": 21.348,
+      "firstGroupOrderMs": 20.753,
       "groupOrderMs": {
-        "average": 6.753,
-        "p95": 21.096,
-        "max": 21.348
+        "average": 6.6,
+        "p95": 20.753,
+        "max": 21.297
       },
       "withinDesktopBudget": true
     },
@@ -415,11 +415,11 @@
       "commands": 24,
       "unitsPerCommand": 60,
       "routesWithDetours": 1440,
-      "firstGroupOrderMs": 50.84,
+      "firstGroupOrderMs": 48.753,
       "groupOrderMs": {
-        "average": 14.563,
-        "p95": 50.84,
-        "max": 52.791
+        "average": 14.34,
+        "p95": 49.359,
+        "max": 51.465
       },
       "withinDesktopBudget": true
     }
@@ -429,10 +429,10 @@
       "mapId": "valle-bruma",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 201.7,
-      "ticks": 2017,
-      "executionMs": 61.331,
-      "finalUnits": 23,
+      "simulatedSeconds": 206.9,
+      "ticks": 2069,
+      "executionMs": 83.982,
+      "finalUnits": 22,
       "controlledSectors": 3,
       "garrisonEntries": 2,
       "peakOccupants": 2
@@ -441,10 +441,10 @@
       "mapId": "cuenca-del-norte",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 179.7,
-      "ticks": 1797,
-      "executionMs": 48.186,
-      "finalUnits": 21,
+      "simulatedSeconds": 170.4,
+      "ticks": 1704,
+      "executionMs": 82.789,
+      "finalUnits": 19,
       "controlledSectors": 5,
       "garrisonEntries": 3,
       "peakOccupants": 1
@@ -453,10 +453,10 @@
       "mapId": "frontera-de-los-siete-pasos",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 204.7,
-      "ticks": 2047,
-      "executionMs": 60.08,
-      "finalUnits": 22,
+      "simulatedSeconds": 169.8,
+      "ticks": 1698,
+      "executionMs": 67.744,
+      "finalUnits": 20,
       "controlledSectors": 7,
       "garrisonEntries": 5,
       "peakOccupants": 2
@@ -465,12 +465,12 @@
       "mapId": "llanura-del-estuario",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 215,
-      "ticks": 2150,
-      "executionMs": 65.525,
-      "finalUnits": 23,
+      "simulatedSeconds": 220.4,
+      "ticks": 2204,
+      "executionMs": 76.651,
+      "finalUnits": 25,
       "controlledSectors": 7,
-      "garrisonEntries": 6,
+      "garrisonEntries": 5,
       "peakOccupants": 3
     }
   ]
