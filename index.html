@@ -1,26 +1,428 @@
 <!doctype html>
 <html lang="es">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101b24"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Frente Boreal. Juego táctico original de armas combinadas en tiempo real.">
-<title>Frente Boreal</title><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icons/icon-192.png"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="stylesheet" href="/client/style.css">
-</head>
-<body>
-<main id="app">
- <div id="viewport" aria-label="Campo de batalla táctico"></div><canvas id="labels" aria-hidden="true"></canvas>
- <header id="hud" hidden><div class="brand"><span class="emblem">F<span>B</span></span><span>FRENTE <b>BOREAL</b><small>VALLE DE LA BRUMA</small></span></div><div id="score"><span class="blue" id="blueScore">300</span><div id="sectorHud"></div><span class="red" id="redScore">300</span></div><div class="resources"><b id="credits">0</b><small>SUMINISTROS</small></div><div class="time"><span id="timer">00:00</span><small id="connection">LOCAL</small></div><button id="helpButton" aria-label="Ayuda">?</button><button id="menuButton" aria-label="Menú">☰</button></header>
- <aside id="deployPanel" class="glass" hidden><div class="panel-title"><span>REFUERZOS</span><button id="closeDeploy" aria-label="Cerrar refuerzos">×</button></div><div id="unitCards"></div><p>Despliega en la zona de tu base.</p></aside>
- <div id="gameTools" hidden><button id="deployToggle">＋ Refuerzos</button><button id="multiToggle" aria-pressed="false">Selección +</button><button id="focusButton" title="Centrar selección">Centrar</button><button id="zoomIn" aria-label="Acercar">＋</button><button id="zoomOut" aria-label="Alejar">−</button></div>
- <div id="orderHint" hidden></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="selectionPanel" class="glass" hidden><div id="selectionText">Toca una unidad propia</div><div id="commands"><button data-order="move">Mover</button><button data-order="attackMove">Avanzar y atacar</button><button data-order="stop">Detener</button><button data-order="fire">Artillería</button><button data-order="smoke">Humo</button><button data-order="load">Embarcar</button><button data-order="unload">Desembarcar</button><button data-order="resupply">Reabastecer</button></div><div class="groups"><span>GRUPOS</span><button data-group="1">1</button><button data-group="2">2</button><button data-group="3">3</button><button id="saveGroup" aria-pressed="false">Guardar selección</button></div></section>
- <aside id="mapPanel" class="glass" hidden><canvas id="minimap" width="256" height="160" aria-label="Minimapa. Toca para mover la cámara."></canvas><div><span id="fps">— FPS</span><span id="unitCount">0 unidades</span></div></aside>
- <div id="portrait">Gira el dispositivo para tener más espacio. También puedes jugar en vertical.</div>
- <section id="startScreen" class="screen"><div class="start-art"><div class="coordinate">45° N / 12° E &nbsp; • &nbsp; SECTOR 07</div><div class="title-emblem">FB</div><h1>FRENTE<br><strong>BOREAL</strong></h1><p>Controla el terreno.<br>Conserva tu fuerza.</p><div class="version">PROTOTIPO JUGABLE · 0.1</div></div><div class="start-content"><div class="eyebrow">OPERACIONES / VALLE DE LA BRUMA</div><h2>Tu siguiente movimiento cuenta.</h2><p class="muted">Toma dos sectores, protege tus exploradores y mantén abastecida tu línea.</p><label>Indicativo<input id="playerName" maxlength="20" value="Comandante" autocomplete="nickname"></label><label>Grupo de combate<select id="deckSelect"><option value="combined">Armas combinadas · todas las categorías</option><option value="armored">Brigada blindada · sin aviación</option><option value="airmobile">Fuerza aeromóvil · sin carros ni artillería</option></select></label><button id="soloButton" class="primary big">Jugar contra la IA <span>Sin conexión después de la primera carga</span></button><div class="divider">PARTIDA CON UN AMIGO</div><div class="mode-row"><button id="coopButton">Cooperativo vs. IA</button><button id="versusButton">Uno contra uno</button></div><div class="join-row"><input id="roomCode" placeholder="Código de sala" aria-label="Código de sala" maxlength="8" autocapitalize="characters"><button id="joinButton">Unirse</button></div><details><summary>Conexión y gráficos</summary><label>Servidor multijugador<input id="serverUrl" placeholder="https://tu-servidor.onrender.com" inputmode="url"></label><p class="muted small">Para jugar desde distintas redes necesitas un servidor publicado. El modo individual funciona aquí mismo.</p><label>Calidad<select id="qualitySelect"><option value="low">Ligera · menor resolución</option><option value="medium" selected>Equilibrada</option><option value="high">Alta · pantalla completa</option></select></label></details><button id="installHelp" class="text-button">Cómo instalar en iPhone y iPad</button><div id="updateNotice" hidden>Actualización disponible <button id="updateButton">Actualizar</button></div><p id="bootStatus" class="muted small">Cargando el escenario…</p></div></section>
- <section id="lobbyScreen" class="screen compact" hidden><div class="dialog"><div class="eyebrow">SALA PRIVADA</div><h2 id="lobbyTitle">Preparando operación</h2><div class="room-code" id="lobbyCode"></div><button id="copyInvite">Copiar invitación</button><div id="playersList"></div><label>Equipo<select id="teamSelect"><option value="0">Azul</option><option value="1">Rojo</option></select></label><div class="mode-row"><button id="readyButton">Estoy preparado</button><button id="startButton" class="primary">Iniciar partida</button></div><p id="lobbyStatus" class="muted">Esperando al otro comandante.</p><button id="leaveLobby" class="text-button">Volver</button></div></section>
- <section id="helpScreen" class="screen compact" hidden><div class="dialog help"><div class="eyebrow">MANUAL DE CAMPO</div><h2>Mandar con precisión</h2><div class="help-grid"><div><h3>Cámara y selección</h3><p>Arrastra sobre el mapa para desplazarte. Pellizca con dos dedos o usa la rueda para acercar. Toca una unidad propia para seleccionarla. Activa <b>Selección +</b> para sumar unidades.</p><p>Pulsa <b>Guardar selección</b> y un número para crear un grupo; después toca ese número para recuperarlo.</p></div><div><h3>Órdenes</h3><p>Selecciona unidades, pulsa <b>Mover</b> o <b>Avanzar y atacar</b> y toca el destino. Arrastrar siempre mueve la cámara. Los soldados capturan; las aeronaves no.</p><p><b>Embarcar:</b> selecciona infantería y toca un transporte propio cercano. <b>Artillería:</b> toca una zona. <b>Reabastecer:</b> acércate al camión logístico.</p></div><div><h3>Ganar la batalla</h3><p>Controla la mayoría de los tres sectores para reducir los puntos del rival. Con cero puntos pierde. A los doce minutos gana quien conserve más puntos.</p><p>El bosque y el pueblo dan cobertura. El reconocimiento descubre enemigos. La supresión reduce la eficacia; la munición y los suministros son limitados.</p></div><div><h3>Instalación y conexión</h3><p>En Safari: <b>Compartir → Añadir a pantalla de inicio → Abrir como app</b>. Abre una vez con Internet para guardar los archivos. El modo individual podrá funcionar sin conexión.</p><p>Las partidas compartidas requieren Internet y servidor. Si falta un jugador se pausa hasta 90 segundos. Un servidor reiniciado pierde la sala.</p></div></div><button id="closeHelp" class="primary">Entendido</button></div></section>
- <section id="pauseScreen" class="screen compact" hidden><div class="dialog"><div class="eyebrow">OPERACIÓN EN CURSO</div><h2 id="pauseTitle">Pausa</h2><p id="pauseText">La simulación individual está detenida.</p><button id="resumeButton" class="primary">Continuar</button><button id="surrenderButton">Rendirse y terminar</button><button id="pauseHelp">Ver controles</button><button id="exitOnline" hidden>Salir de sala (termina para ambos)</button></div></section>
- <section id="resultScreen" class="screen compact" hidden><div class="dialog"><div class="eyebrow">FIN DE LA OPERACIÓN</div><h2 id="resultTitle"></h2><p id="resultText"></p><button id="newGameButton" class="primary">Volver a operaciones</button></div></section>
-</main><script type="module" src="/client/main.mjs"></script>
-</body></html>
-
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#101b24" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta
+      name="description"
+      content="Frente Boreal. Juego táctico original de armas combinadas en tiempo real."
+    />
+    <title>Frente Boreal</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/client/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <div id="viewport" aria-label="Campo de batalla táctico"></div>
+      <canvas id="labels" aria-hidden="true"></canvas>
+      <header id="hud" hidden>
+        <div id="score" aria-label="Puntos y objetivos">
+          <span class="blue" id="blueScore">300</span>
+          <div id="sectorHud"></div>
+          <span class="red" id="redScore">300</span>
+        </div>
+        <div class="resources" title="Suministros disponibles">
+          $<b id="credits">0</b>
+        </div>
+        <span id="timer">00:00</span
+        ><span id="connection" title="Estado de conexión">LOCAL</span
+        ><button id="menuButton" aria-label="Menú">☰</button>
+      </header>
+      <aside id="deployPanel" class="glass" hidden>
+        <div class="panel-title">
+          <span>REFUERZOS</span
+          ><button id="closeDeploy" aria-label="Cerrar refuerzos">×</button>
+        </div>
+        <div id="unitCards"></div>
+        <p>Despliega en la zona de tu base.</p>
+      </aside>
+      <nav id="gameTools" aria-label="Controles de batalla" hidden>
+        <button
+          id="deployToggle"
+          aria-expanded="false"
+          aria-controls="deployPanel"
+        >
+          ＋ Refuerzos</button
+        ><button id="mapToggle" aria-expanded="false" aria-controls="mapPanel">
+          Mapa</button
+        ><button
+          id="groupToggle"
+          aria-expanded="false"
+          aria-controls="groupPanel"
+        >
+          Grupos</button
+        ><button
+          id="multiToggle"
+          aria-pressed="false"
+          aria-label="Sumar unidades a la selección"
+          title="Sumar unidades"
+        >
+          ＋▣</button
+        ><button
+          id="focusButton"
+          aria-label="Centrar selección o base"
+          title="Centrar selección o base"
+        >
+          ⌖
+        </button>
+      </nav>
+      <button
+        id="orderHint"
+        aria-label="Cancelar orden pendiente"
+        hidden
+      ></button>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <section id="selectionPanel" class="glass" aria-label="Selección" hidden>
+        <span id="selectionText"></span><button data-order="move">Mover</button
+        ><button data-order="stop">Alto</button
+        ><button
+          id="unitToggle"
+          aria-expanded="false"
+          aria-controls="unitPanel"
+          aria-label="Acciones y detalles de la selección"
+        >
+          •••
+        </button>
+      </section>
+      <aside id="unitPanel" class="glass secondary" hidden>
+        <div class="panel-title">
+          <span>UNIDAD / ACCIONES</span
+          ><button data-close="unitPanel" aria-label="Cerrar acciones">
+            ×
+          </button>
+        </div>
+        <p id="unitSummary"></p>
+        <div id="commands">
+          <button data-order="attackMove">Avanzar y atacar</button
+          ><button data-order="fire">Artillería</button
+          ><button data-order="smoke">Humo</button
+          ><button data-order="load">Embarcar</button
+          ><button data-order="unload">Desembarcar</button
+          ><button data-order="resupply">Reabastecer</button>
+        </div>
+        <details>
+          <summary>Estadísticas y función</summary>
+          <p id="unitDetails"></p>
+        </details>
+      </aside>
+      <aside id="groupPanel" class="glass secondary" hidden>
+        <div class="panel-title">
+          <span>GRUPOS</span
+          ><button data-close="groupPanel" aria-label="Cerrar grupos">×</button>
+        </div>
+        <div class="groups">
+          <button data-group="1">1</button><button data-group="2">2</button
+          ><button data-group="3">3</button
+          ><button id="saveGroup" aria-pressed="false">
+            Guardar selección
+          </button>
+        </div>
+        <p>Guardar y después un número. Toca un grupo para recuperarlo.</p>
+      </aside>
+      <aside id="mapPanel" class="glass secondary" hidden>
+        <div class="panel-title">
+          <span id="mapName">MAPA</span
+          ><button data-close="mapPanel" aria-label="Cerrar mapa">×</button>
+        </div>
+        <canvas
+          id="minimap"
+          width="320"
+          height="200"
+          aria-label="Minimapa. Toca para mover la cámara."
+        ></canvas>
+        <div class="map-controls">
+          <button id="zoomIn" aria-label="Acercar">＋</button
+          ><button id="zoomOut" aria-label="Alejar">−</button
+          ><button id="overviewButton">Vista general</button>
+        </div>
+        <div class="map-status">
+          <span id="fps">— FPS</span><span id="unitCount">0 unidades</span>
+        </div>
+      </aside>
+      <section id="startScreen" class="screen">
+        <div class="start-art">
+          <div class="coordinate">45° N / 12° E &nbsp; • &nbsp; SECTOR 07</div>
+          <div class="title-emblem">FB</div>
+          <h1>FRENTE<br /><strong>BOREAL</strong></h1>
+          <p>Controla el terreno.<br />Conserva tu fuerza.</p>
+          <div class="version">OPERACIONES TÁCTICAS · 0.2</div>
+        </div>
+        <div class="start-content">
+          <div class="eyebrow">OPERACIONES / FRENTE BOREAL</div>
+          <h2>Tu siguiente movimiento cuenta.</h2>
+          <p class="muted">
+            Reconoce, maniobra y controla la mayoría de los objetivos.
+          </p>
+          <label
+            >Indicativo<input
+              id="playerName"
+              maxlength="20"
+              value="Comandante"
+              autocomplete="nickname" /></label
+          ><label
+            >Grupo de combate<select id="deckSelect">
+              <option value="combined">
+                Armas combinadas · todas las categorías
+              </option>
+              <option value="armored">Brigada blindada · sin aviación</option>
+              <option value="airmobile">
+                Fuerza aeromóvil · sin carros ni artillería
+              </option>
+            </select></label
+          ><button id="soloButton" class="primary big">
+            Jugar contra la IA
+            <span>Sin conexión después de la primera carga</span>
+          </button>
+          <div class="divider">PARTIDA CON UN AMIGO</div>
+          <div class="mode-row">
+            <button id="coopButton">Cooperativo vs. IA</button
+            ><button id="versusButton">Uno contra uno</button>
+          </div>
+          <div class="join-row">
+            <input
+              id="roomCode"
+              placeholder="Código de sala"
+              aria-label="Código de sala"
+              maxlength="8"
+              autocapitalize="characters"
+            /><button id="joinButton">Unirse</button>
+          </div>
+          <details>
+            <summary>Conexión y gráficos</summary>
+            <label
+              >Servidor multijugador<input
+                id="serverUrl"
+                placeholder="https://tu-servidor.onrender.com"
+                inputmode="url"
+            /></label>
+            <p class="muted small">
+              Para jugar desde distintas redes necesitas un servidor publicado.
+              El modo individual funciona aquí mismo.
+            </p>
+            <label
+              >Calidad<select id="qualitySelect">
+                <option value="low">Ligera · menor resolución</option>
+                <option value="medium" selected>Equilibrada</option>
+                <option value="high">Alta · pantalla completa</option>
+              </select></label
+            >
+          </details>
+          <button id="installHelp" class="text-button">
+            Cómo instalar en iPhone y iPad
+          </button>
+          <div id="updateNotice" hidden>
+            Actualización disponible
+            <button id="updateButton">Actualizar</button>
+          </div>
+          <p id="bootStatus" class="muted small">Cargando el escenario…</p>
+        </div>
+      </section>
+      <section id="configScreen" class="screen compact" hidden>
+        <form id="configForm" class="dialog config-dialog">
+          <div class="eyebrow">ANTES DE DESPLEGAR</div>
+          <h2 id="configTitle">Configurar operación</h2>
+          <label
+            >Escenario y tamaño<select id="configMap" name="mapId"></select
+          ></label>
+          <p id="configMapDescription" class="muted small"></p>
+          <div class="config-grid">
+            <label
+              >Recursos iniciales por jugador<input
+                id="configResources"
+                name="startingResources"
+                type="number"
+                min="0"
+                max="10000"
+                step="10"
+                required /></label
+            ><label
+              >Multiplicador de ingresos<select
+                id="configIncome"
+                name="incomeMultiplier"
+              >
+                <option value="0.5">0,5×</option>
+                <option value="1">1×</option>
+                <option value="2">2×</option>
+                <option value="3">3×</option>
+                <option value="5">5×</option>
+              </select></label
+            ><label
+              >Límite total de unidades<input
+                id="configUnits"
+                name="maxUnits"
+                type="number"
+                min="24"
+                max="120"
+                step="1"
+                required /></label
+            ><label
+              >Duración (minutos)<input
+                id="configDuration"
+                name="duration"
+                type="number"
+                min="3"
+                max="60"
+                step="1"
+                required /></label
+            ><label
+              >Puntos por equipo<input
+                id="configTickets"
+                name="tickets"
+                type="number"
+                min="100"
+                max="2000"
+                step="10"
+                required
+            /></label>
+          </div>
+          <p class="muted small">
+            Cada jugador y la IA reciben el mismo saldo inicial, además de su
+            fuerza de partida. El multiplicador afecta solo a los ingresos de
+            suministros (6 por segundo a 1×); conserva los precios. Los sectores
+            reducen los puntos del rival. La frecuencia de cobro permanece
+            igual.
+          </p>
+          <p class="muted small">
+            El límite de unidades se comparte entre todos. Pierde el equipo que
+            agote sus puntos; al acabar el tiempo gana quien conserve más.
+          </p>
+          <p id="configError" role="alert"></p>
+          <div class="mode-row">
+            <button id="resetConfig" type="button">Restaurar valores</button
+            ><button id="confirmConfig" type="submit" class="primary">
+              Comenzar
+            </button>
+          </div>
+          <button id="cancelConfig" type="button" class="text-button">
+            Volver
+          </button>
+        </form>
+      </section>
+      <section id="lobbyScreen" class="screen compact" hidden>
+        <div class="dialog">
+          <div class="eyebrow">SALA PRIVADA</div>
+          <h2 id="lobbyTitle">Preparando operación</h2>
+          <div class="room-code" id="lobbyCode"></div>
+          <button id="copyInvite">Copiar invitación</button>
+          <div id="playersList"></div>
+          <section class="lobby-config">
+            <h3>Condiciones compartidas</h3>
+            <p id="lobbyConfigSummary"></p>
+            <button id="editConfig">Cambiar ajustes</button
+            ><small id="lobbyConfigVersion"></small>
+          </section>
+          <label
+            >Equipo<select id="teamSelect">
+              <option value="0">Azul</option>
+              <option value="1">Rojo</option>
+            </select></label
+          >
+          <div class="mode-row">
+            <button id="readyButton">Estoy preparado</button
+            ><button id="startButton" class="primary">Iniciar partida</button>
+          </div>
+          <p id="lobbyStatus" class="muted">Esperando al otro comandante.</p>
+          <button id="leaveLobby" class="text-button">Volver</button>
+        </div>
+      </section>
+      <section id="helpScreen" class="screen compact" hidden>
+        <div class="dialog help">
+          <div class="eyebrow">MANUAL DE CAMPO</div>
+          <h2>Mandar con precisión</h2>
+          <div class="help-grid">
+            <div>
+              <h3>Cámara y selección</h3>
+              <p>
+                Arrastra sobre el mapa para desplazarte. Pellizca con dos dedos
+                o usa la rueda para acercar. Toca una unidad propia para
+                seleccionarla. Activa <b>Selección +</b> para sumar unidades.
+              </p>
+              <p>
+                Pulsa <b>Guardar selección</b> y un número para crear un grupo;
+                después toca ese número para recuperarlo.
+              </p>
+            </div>
+            <div>
+              <h3>Órdenes</h3>
+              <p>
+                Selecciona unidades, pulsa <b>Mover</b> o
+                <b>Avanzar y atacar</b> y toca el destino. Mover y Avanzar y
+                atacar se detienen ante blancos válidos y continúan al acabar el
+                combate. Alto cancela el destino. Arrastrar siempre mueve la
+                cámara. Los soldados capturan; las aeronaves no.
+              </p>
+              <p>
+                <b>Embarcar:</b> selecciona infantería y toca un transporte
+                propio cercano. <b>Artillería:</b> toca una zona.
+                <b>Reabastecer:</b> acércate al camión logístico.
+              </p>
+            </div>
+            <div>
+              <h3>Ganar la batalla</h3>
+              <p>
+                Controla la mayoría de los sectores para reducir los puntos del
+                rival. Con cero puntos pierde. La duración y los puntos se
+                eligen antes de empezar.
+              </p>
+              <p>
+                El bosque y el pueblo dan cobertura. El reconocimiento descubre
+                enemigos. La supresión reduce la eficacia; la munición y los
+                suministros son limitados.
+              </p>
+            </div>
+            <div>
+              <h3>Instalación y conexión</h3>
+              <p>
+                En Safari:
+                <b>Compartir → Añadir a pantalla de inicio → Abrir como app</b>.
+                Abre una vez con Internet para guardar los archivos. El modo
+                individual podrá funcionar sin conexión.
+              </p>
+              <p>
+                Las partidas compartidas requieren Internet y servidor. Si falta
+                un jugador se pausa hasta 90 segundos. Un servidor reiniciado
+                pierde la sala.
+              </p>
+            </div>
+          </div>
+          <button id="closeHelp" class="primary">Entendido</button>
+        </div>
+      </section>
+      <section id="pauseScreen" class="screen compact" hidden>
+        <div class="dialog">
+          <div class="eyebrow">OPERACIÓN EN CURSO</div>
+          <h2 id="pauseTitle">Pausa</h2>
+          <p id="pauseText">La simulación individual está detenida.</p>
+          <button id="resumeButton" class="primary">Continuar</button
+          ><button id="surrenderButton">Rendirse y terminar</button
+          ><button id="pauseHelp">Ver controles</button
+          ><button id="exitOnline" hidden>
+            Salir de sala (termina para ambos)
+          </button>
+        </div>
+      </section>
+      <section id="resultScreen" class="screen compact" hidden>
+        <div class="dialog">
+          <div class="eyebrow">FIN DE LA OPERACIÓN</div>
+          <h2 id="resultTitle"></h2>
+          <p id="resultText"></p>
+          <button id="newGameButton" class="primary">
+            Volver a operaciones
+          </button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/client/main.mjs"></script>
+  </body>
+</html>
