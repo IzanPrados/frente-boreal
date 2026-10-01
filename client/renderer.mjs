@@ -3,6 +3,8 @@ import { UNIT_TYPES } from "../shared/data.mjs";
 
 import { getMap } from "../shared/maps.mjs";
 import { createFogGrid, visibilityOutline } from "./fog.mjs";
+import { makeBuildingModel, makeUnitModel } from "./models.mjs";
+import { unitIdentity, drawUnitSymbol } from "./symbols.mjs";
 
 const BLUE = 0x7dcce7,
   RED = 0xf29b86;
@@ -42,9 +44,9 @@ export class Battlefield {
     this.camera = new THREE.OrthographicCamera(-800, 800, 500, -500, 1, 10000);
     this.ray = new THREE.Raycaster();
     this.ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    this.scene.add(new THREE.HemisphereLight(0xe6eee5, 0x324942, 2.5));
-    const sun = new THREE.DirectionalLight(0xfff1d2, 3);
-    sun.position.set(-300, 800, 250);
+    this.scene.add(new THREE.HemisphereLight(0xe6eee5, 0x324942, 1.55));
+    const sun = new THREE.DirectionalLight(0xfff1d2, 3.4);
+    sun.position.set(-600, 750, 500);
     this.scene.add(sun);
     this.materials = new Map();
     this.makeTerrain();
@@ -246,46 +248,49 @@ export class Battlefield {
       (this.map.buildings ?? []).map((b) => [b.id, b]),
     );
     for (const b of this.map.buildings ?? []) {
-      const x = b.x + b.w / 2,
-        z = b.y + b.h / 2,
-        height = (b.height ?? 18) - 6;
-      this.box(b.w, height, b.h, b.occupiable ? 0xbab49d : 0x929d97, x, 0, z);
-      const roof = new THREE.Mesh(
-        new THREE.ConeGeometry(1, 1, 4),
-        this.material(b.occupiable ? 0x816651 : 0x59696a),
+      // Cheap projected ground shade, with no real-time shadow maps.
+      const h = b.height ?? 24,
+        dx = h * 0.8,
+        dz = -h * 0.65;
+      const shadow = new THREE.BufferGeometry();
+      const corners = [
+        [b.x, b.y],
+        [b.x + b.w, b.y],
+        [b.x + b.w + dx, b.y + dz],
+        [b.x + dx, b.y + dz],
+        [b.x + b.w, b.y],
+        [b.x + b.w, b.y + b.h],
+        [b.x + b.w + dx, b.y + b.h + dz],
+        [b.x + b.w + dx, b.y + dz],
+      ];
+      const positions = [];
+      for (const start of [0, 4])
+        for (const i of [0, 1, 2, 0, 2, 3]) {
+          const p = corners[start + i];
+          positions.push(p[0], 0.32, p[1]);
+        }
+      shadow.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
       );
-      roof.rotation.y = Math.PI / 4;
-      roof.scale.set(b.w / Math.SQRT2, 6, b.h / Math.SQRT2);
-      roof.position.set(x, height + 3, z);
-      this.scene.add(roof);
-      // Doors and windows sit on the solid footprint; access markers are contextual.
-      for (const door of b.doors ?? []) {
-        const dx = Math.abs(door.x - x),
-          dy = Math.abs(door.y - z);
-        if (dx > dy)
-          this.box(
-            0.4,
-            7,
-            4,
-            0x3e5149,
-            door.x < x ? b.x - 0.25 : b.x + b.w + 0.25,
-            0,
-            z,
-          );
-        else
-          this.box(
-            4,
-            7,
-            0.4,
-            0x3e5149,
-            x,
-            0,
-            door.y < z ? b.y - 0.25 : b.y + b.h + 0.25,
-          );
-      }
-      for (let a = b.x + 6; a < b.x + b.w - 3; a += 12) {
-        this.box(3, 3, 0.3, 0x435963, a, height * 0.55, b.y - 0.2);
-        this.box(3, 3, 0.3, 0x435963, a, height * 0.55, b.y + b.h + 0.2);
+      shadow.computeVertexNormals();
+      shadow.setAttribute(
+        "uv",
+        new THREE.Float32BufferAttribute(
+          new Float32Array((positions.length / 3) * 2),
+          2,
+        ),
+      );
+      const shade = new THREE.Mesh(shadow, this.material(0x53634c));
+      this.scene.add(shade);
+      const building = makeBuildingModel(THREE, b, (color) =>
+        this.material(color),
+      );
+      building.updateMatrix();
+      // Flatten these static meshes so the existing batching merges all houses.
+      for (const part of [...building.children]) {
+        part.applyMatrix4(building.matrix);
+        this.scene.add(part);
       }
     }
     const foliage = new THREE.InstancedMesh(
@@ -387,6 +392,12 @@ export class Battlefield {
   batchTerrain(parent = this.scene) {
     // Merge fixed parts by material, preserving unit rings and animated rotors.
     parent.updateMatrixWorld(true);
+    const unitBatch = parent !== this.scene;
+    if (unitBatch && !this.materials.has("unit-vertex-colors"))
+      this.materials.set(
+        "unit-vertex-colors",
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 }),
+      );
     const batches = new Map();
     for (const mesh of [...parent.children]) {
       if (
@@ -400,16 +411,33 @@ export class Battlefield {
         ? mesh.geometry.toNonIndexed()
         : mesh.geometry.clone();
       geometry.applyMatrix4(mesh.matrixWorld);
-      const key = mesh.material.uuid;
+      if (unitBatch) {
+        const colors = new Float32Array(geometry.attributes.position.count * 3),
+          color = mesh.material.color;
+        for (let i = 0; i < colors.length; i += 3) {
+          colors[i] = color.r;
+          colors[i + 1] = color.g;
+          colors[i + 2] = color.b;
+        }
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      }
+      const key = unitBatch ? "unit-vertex-colors" : mesh.material.uuid;
       if (!batches.has(key))
-        batches.set(key, { material: mesh.material, items: [] });
+        batches.set(key, {
+          material: unitBatch
+            ? this.materials.get("unit-vertex-colors")
+            : mesh.material,
+          items: [],
+        });
       batches.get(key).items.push(geometry);
       parent.remove(mesh);
       mesh.geometry.dispose();
     }
     for (const batch of batches.values()) {
       const geometry = new THREE.BufferGeometry();
-      for (const name of ["position", "normal", "uv"]) {
+      for (const name of unitBatch
+        ? ["position", "normal", "uv", "color"]
+        : ["position", "normal", "uv"]) {
         const length = batch.items.reduce(
           (n, g) => n + g.attributes[name].array.length,
           0,
@@ -431,87 +459,14 @@ export class Battlefield {
     }
   }
   makeUnit(type, team) {
-    const g = new THREE.Group(),
-      color = team ? 0x8f7860 : 0x728f7a,
-      dark = 0x263a35,
-      edge = team ? RED : BLUE;
-    const add = (w, h, d, c, x, y, z) => this.box(w, h, d, c, x, y, z, g);
-    const wheel = (x, z) => {
-      const w = new THREE.Mesh(
-        new THREE.CylinderGeometry(3, 3, 3, 8),
-        this.material(dark),
-      );
-      w.rotation.z = Math.PI / 2;
-      w.position.set(x, 3, z);
-      g.add(w);
-    };
-    if (type === "infantry") {
-      for (const [x, z] of [
-        [0, -6],
-        [-5, 3],
-        [5, 3],
-      ]) {
-        add(4, 7, 3, color, x, 1, z);
-        const head = new THREE.Mesh(
-          new THREE.SphereGeometry(2.2, 6, 4),
-          this.material(0x9fa18a),
-        );
-        head.position.set(x, 10, z);
-        g.add(head);
-        add(1, 1, 7, dark, x + 2, 6, z - 3);
-      }
-    } else if (type === "helicopter") {
-      add(10, 8, 23, color, 0, 0, 0);
-      add(3, 3, 24, color, 0, 3, 19);
-      add(5, 5, 10, 0x38585e, 0, 1, -7);
-      const rotor = add(46, 0.7, 2, dark, 0, 11, 0);
-      rotor.name = "rotor";
-      add(2, 0.7, 46, dark, 0, 11, 0);
-      add(21, 1.5, 2, dark, 0, -2, 5);
-      add(2, 1.5, 20, dark, -10, -3, 0);
-      add(2, 1.5, 20, dark, 10, -3, 0);
-    } else if (type === "jet") {
-      add(8, 5, 38, color, 0, 0, 0);
-      add(38, 1.5, 10, color, 0, 1, 5);
-      add(17, 1, 5, color, 0, 3, 17);
-      add(1.5, 9, 7, color, 0, 3, 16);
-      const tip = new THREE.Mesh(
-        new THREE.ConeGeometry(4, 15, 5),
-        this.material(color),
-      );
-      tip.rotation.x = -Math.PI / 2;
-      tip.position.set(0, 2, -26);
-      g.add(tip);
-    } else {
-      const w = type === "recon" ? 11 : type === "tank" ? 20 : 17,
-        d = type === "recon" ? 20 : 30;
-      add(w, 6, d, color, 0, 3, 0);
-      if (type === "tank" || type === "artillery") {
-        add(5, 6, d + 3, dark, -w / 2, 0, 0);
-        add(5, 6, d + 3, dark, w / 2, 0, 0);
-      } else
-        for (const z of [-9, 7]) {
-          wheel(-w / 2, z);
-          wheel(w / 2, z);
-        }
-      if (type === "supply") {
-        add(16, 12, 20, 0x849379, 0, 8, 4);
-        add(14, 7, 9, color, 0, 8, -11);
-        add(8, 0.6, 2, 0xd0d5b0, 0, 21, 4);
-        add(2, 0.6, 8, 0xd0d5b0, 0, 21, 4);
-      } else if (type === "aa") {
-        add(12, 4, 12, color, 0, 9, 0);
-        for (const x of [-4, 4]) add(2, 2, 20, dark, x, 15, -6);
-      } else if (type === "tank" || type === "artillery") {
-        add(12, 5, 13, color, 0, 9, 0);
-        add(2.5, 2.5, type === "artillery" ? 32 : 24, dark, 0, 12, -15);
-      } else {
-        add(w - 4, 5, 10, color, 0, 9, -3);
-        add(1.3, 1.3, 10, dark, 0, 14, -8);
-      }
-    }
+    const g = makeUnitModel(THREE, type, team, (color) => this.material(color));
+    const edge = team ? RED : BLUE;
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(15, 17, 32),
+      new THREE.RingGeometry(
+        type === "infantry" ? 16 : 22,
+        type === "infantry" ? 18 : 24,
+        32,
+      ),
       new THREE.MeshBasicMaterial({
         color: edge,
         side: THREE.DoubleSide,
@@ -533,6 +488,13 @@ export class Battlefield {
     this.state = state;
     this.playerId = playerId;
     this.myTeam = state.players.find((p) => p.id === playerId)?.team ?? 0;
+    this.occupantsByBuilding = new Map();
+    for (const unit of state.units)
+      if (unit.garrisonedIn) {
+        if (!this.occupantsByBuilding.has(unit.garrisonedIn))
+          this.occupantsByBuilding.set(unit.garrisonedIn, []);
+        this.occupantsByBuilding.get(unit.garrisonedIn).push(unit);
+      }
     const ids = new Set();
     for (const u of state.units) {
       if (u.loadedIn) continue;
@@ -550,6 +512,7 @@ export class Battlefield {
     for (const [id, m] of this.units)
       if (!ids.has(id)) {
         this.scene.remove(m);
+        m.getObjectByName("selection")?.material.dispose();
         m.traverse((o) => {
           if (o.geometry) o.geometry.dispose();
         });
@@ -825,38 +788,66 @@ export class Battlefield {
       c.fillText(String(index + 1), p.x, p.y - 10);
     }
     for (const b of this.map.buildings ?? []) {
-      const occupants = this.state.units.filter((u) => u.garrisonedIn === b.id),
-        own = occupants.filter((u) => u.team === this.myTeam);
-      const selected = b.id === this.selectedBuildingId;
+      const occupants = this.occupantsByBuilding?.get(b.id) ?? [],
+        friendly = occupants.filter((u) => u.team === this.myTeam);
+      const selected =
+        b.id === this.selectedBuildingId ||
+        occupants.some((u) => this.selected.has(u.id));
       if (
         !selected &&
-        !own.length &&
+        !occupants.length &&
         !(this.highlightBuildings && b.occupiable)
       )
         continue;
       const p = this.buildingScreen(b);
       if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) continue;
+      const representative =
+        occupants.find((u) => u.ownerId === this.playerId) ?? occupants[0];
+      const identity = representative
+        ? unitIdentity(representative, this.playerId, this.myTeam)
+        : null;
+      const displayOnly =
+        occupants.length > 0 && occupants.every((u) => u.displayOnly);
+      c.strokeStyle = selected ? "#ffe0a3" : (identity?.color ?? "#c9debe");
+      c.lineWidth = selected ? 2 : 1;
+      c.setLineDash(displayOnly ? [3, 3] : []);
+      c.beginPath();
       const corners = [
         [b.x, b.y],
         [b.x + b.w, b.y],
         [b.x + b.w, b.y + b.h],
         [b.x, b.y + b.h],
-      ].map(([x, y]) => this.screenAt(x, y, b.height ?? 18));
-      c.strokeStyle = selected ? "#ffe0a3" : own.length ? "#91d6ef" : "#c9debe";
-      c.lineWidth = selected ? 2 : 1;
-      c.beginPath();
+      ].map(([x, y]) => this.screenAt(x, y, 0.6));
       corners.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)));
       c.closePath();
       c.stroke();
-      if (selected || own.length || this.zoom > 1) {
-        const label = own.length
-          ? "⌂ " + own.length + "/" + b.capacity
-          : "⌂ " + b.capacity;
-        c.font = "bold 11px Arial";
+      c.setLineDash([]);
+      if (occupants.length) {
+        drawUnitSymbol(
+          c,
+          p.x - 12,
+          p.y,
+          representative,
+          { ...identity, displayOnly },
+          { radius: 7, selected },
+        );
         c.fillStyle = "#10232bf0";
-        c.fillRect(p.x - 20, p.y - 12, 40, 18);
-        c.fillStyle = own.length ? "#91d6ef" : "#e0e9cf";
-        c.fillText(label, p.x, p.y + 1);
+        c.fillRect(p.x - 2, p.y - 9, 27, 18);
+        c.fillStyle = identity.color;
+        c.font = "bold 11px Arial";
+        c.fillText(
+          friendly.length
+            ? friendly.length + "/" + b.capacity
+            : String(occupants.length),
+          p.x + 11,
+          p.y + 4,
+        );
+      } else if (selected || this.zoom > 1) {
+        c.font = "bold 10px Arial";
+        c.fillStyle = "#10232be8";
+        c.fillRect(p.x - 17, p.y - 9, 34, 18);
+        c.fillStyle = "#e0e9cf";
+        c.fillText("⌂ " + b.capacity, p.x, p.y + 4);
       }
       if (selected)
         for (const door of b.doors ?? []) {
@@ -868,33 +859,40 @@ export class Battlefield {
         }
     }
     for (const u of this.state.units) {
-      if (u.loadedIn) continue;
+      if (u.loadedIn || u.garrisonedIn) continue;
       const p = this.unitScreen(u, 20);
       if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) continue;
-      const sel = this.selected.has(u.id);
-      c.fillStyle = u.team === 0 ? "#98d8ed" : "#f5a991";
-      c.beginPath();
-      c.moveTo(p.x, p.y - 10);
-      c.lineTo(p.x - 4, p.y - 16);
-      c.lineTo(p.x + 4, p.y - 16);
-      c.fill();
-      if (sel || this.zoom > 1.35) {
-        c.fillStyle = "#0d1b22d9";
-        c.fillRect(p.x - 22, p.y - 27, 44, 5);
+      const selected = this.selected.has(u.id),
+        identity = unitIdentity(u, this.playerId, this.myTeam);
+      const radius = selected ? 9 : this.zoom > 1.7 ? 6.5 : 8;
+      drawUnitSymbol(c, p.x, p.y - 15, u, identity, { radius, selected });
+      if (selected) {
+        c.fillStyle = "#10232bf0";
+        c.fillRect(p.x - 21, p.y - 31, 42, 5);
         c.fillStyle =
           u.hp / (u.maxHp ?? UNIT_TYPES[u.type].hp) < 0.35
-            ? "#e19075"
-            : "#a9d59d";
+            ? "#eeaa8d"
+            : "#b7dfad";
         c.fillRect(
-          p.x - 22,
-          p.y - 27,
-          44 * Math.max(0, u.hp / (u.maxHp ?? UNIT_TYPES[u.type].hp)),
+          p.x - 21,
+          p.y - 31,
+          42 * Math.max(0, u.hp / (u.maxHp ?? UNIT_TYPES[u.type].hp)),
           4,
         );
-        if (sel) {
+        if (this.selected.size === 1) {
           c.font = "bold 10px Arial";
-          c.fillStyle = "#eff5ea";
-          c.fillText(UNIT_TYPES[u.type].name, p.x, p.y - 34);
+          c.fillStyle = "#fff0ce";
+          c.fillText(UNIT_TYPES[u.type].name, p.x, p.y - 38);
+        }
+        if (u.combatPaused) {
+          c.strokeStyle = "#ffdc98";
+          c.lineWidth = 1;
+          c.beginPath();
+          c.moveTo(p.x + 12, p.y - 19);
+          c.lineTo(p.x + 16, p.y - 11);
+          c.moveTo(p.x + 16, p.y - 19);
+          c.lineTo(p.x + 12, p.y - 11);
+          c.stroke();
         }
       }
     }
@@ -936,14 +934,21 @@ export class Battlefield {
       c.arc(s.x * sx, s.y * sy, s.radius * sx, 0, Math.PI * 2);
       c.stroke();
     }
+    const occupiedShown = new Set();
     for (const u of this.state.units) {
       if (u.loadedIn) continue;
-      c.fillStyle = this.selected.has(u.id)
-        ? "#fff"
-        : u.team === 0
-          ? "#8dd8f0"
-          : "#faa28a";
-      c.fillRect(u.x * sx - 2, u.y * sy - 2, 4, 4);
+      if (u.garrisonedIn) {
+        if (occupiedShown.has(u.garrisonedIn)) continue;
+        occupiedShown.add(u.garrisonedIn);
+      }
+      drawUnitSymbol(
+        c,
+        u.x * sx,
+        u.y * sy,
+        u,
+        unitIdentity(u, this.playerId, this.myTeam),
+        { radius: 2.8, mini: true, selected: this.selected.has(u.id) },
+      );
     }
     const a = this.worldAt(0, 0),
       b = this.worldAt(this.width, 0),
