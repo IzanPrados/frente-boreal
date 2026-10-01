@@ -16,16 +16,19 @@ export const DEFAULT_CONFIG = Object.freeze({
   maxUnits: RULES.maxUnits,
   duration: RULES.defaultDuration,
   tickets: RULES.tickets,
+  allowEnemyReveal: false,
 });
 
 const labels = {
   mapId: 'Mapa', startingResources: 'Recursos iniciales',
   incomeMultiplier: 'Multiplicador de ingresos', maxUnits: 'Límite total de unidades',
   duration: 'Duración en segundos', tickets: 'Puntos iniciales de cada bando',
+  allowEnemyReveal: 'Permitir mostrar tropas enemigas',
 };
 const isObject = input => input !== null && typeof input === 'object' && !Array.isArray(input);
 
 function validValue(key, value) {
+  if (key === 'allowEnemyReveal') return typeof value === 'boolean';
   if (key === 'mapId') return isMapId(value);
   if (key === 'incomeMultiplier') return INCOME_MULTIPLIERS.includes(value);
   const limit = CONFIG_LIMITS[key];
@@ -52,6 +55,7 @@ export function validateConfig(input) {
     const limit = CONFIG_LIMITS[key];
     const expected = key === 'mapId' ? 'Selecciona un mapa disponible.'
       : key === 'incomeMultiplier' ? 'Usa 0,5×, 1×, 2×, 3× o 5×.'
+      : key === 'allowEnemyReveal' ? 'Usa verdadero o falso.'
       : `Usa un número entero entre ${limit.min} y ${limit.max}.`;
     return { ok: false, error: `${labels[key]}: ${expected}` };
   }
