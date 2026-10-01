@@ -8,7 +8,7 @@ Publicación real en Render Free, Frankfurt. No hace falta dejar encendido tu or
 
 En el ordenador de esta entrega también puedes abrir `Iniciar-juego.cmd`: usa Node ya disponible y escucha solo en este equipo. Si arrancas desde una copia nueva, instala primero las dependencias como se indica debajo.
 
-La versión 0.2 incorpora interfaz contextual, combate automático durante el movimiento, ajustes de partida compartidos y tres tamaños de mapa. El registro de lo implementado, las pruebas reales y los límites está en [docs/ESTADO.md](docs/ESTADO.md). La investigación de Safari y alojamiento gratuito está en [docs/INVESTIGACION.md](docs/INVESTIGACION.md).
+La versión 0.3 añade edificios sólidos y ocupables, vegetación diferenciada, pausa y velocidades compartidas en cooperativo, y un cuarto mapa de 4800 × 3000. Conserva la interfaz contextual, el combate automático durante el movimiento y los ajustes de partida compartidos. El registro de implementación, pruebas y límites está en [docs/ESTADO.md](docs/ESTADO.md).
 
 ## Ejecutar en tu ordenador
 
@@ -42,8 +42,9 @@ Antes de iniciar o crear una sala se eligen recursos iniciales (0–10000), ingr
 | Valle de la Bruma | Compacto · 1600 × 1000 | 3 |
 | Cuenca del Norte | Mediano · 2400 × 1600 | 5 |
 | Frontera de los Siete Pasos | Grande · 3200 × 2000 | 7 |
+| Llanura del Estuario | Extenso · 4800 × 3000 | 9 |
 
-Cada tamaño tiene un trazado propio. Carreteras aceleran, bosque y población dan cobertura y afectan a la visión; el agua solo se cruza por pasos transitables. En sala, todos ven los ajustes del anfitrión antes de prepararse. Cualquier cambio cancela la preparación de ambos; al empezar quedan bloqueados. La última configuración se guarda en el dispositivo.
+Cada tamaño tiene un trazado propio. El Estuario tiene 2,25 veces la superficie del mayor anterior, 96 edificios, 84 ocupables, poblaciones conectadas y cinco puentes. Los tres mapas anteriores se conservan y mejoran. Las carreteras aceleran; vegetación, humo y paredes afectan a la visión. El agua se cruza por pasos transitables. En sala, todos ven los ajustes del anfitrión antes de prepararse. Cualquier cambio cancela la preparación de ambos; al empezar quedan bloqueados. La última configuración se guarda en el dispositivo.
 
 ### Controles
 
@@ -58,8 +59,23 @@ Cada tamaño tiene un trazado propio. Carreteras aceleran, bosque y población d
 | Refuerzos | Elegir una unidad y colocarla dentro de tu zona de despliegue. |
 | Más acciones y estadísticas | Botón «•••» de la selección; estadísticas bajo demanda. |
 | Cancelar orden pendiente | Tocar «Cancelar ×» o Escape, antes de elegir destino. |
+| Ocupar edificio | Seleccionar infantería, tocar un edificio compatible y pulsar «Entrar». También está en «•••». |
+| Ver ocupantes y salir | Tocar la posición ocupada; seleccionar una unidad propia del panel o pulsar «Salir». Mover desde dentro ordena salir y continuar. |
+| Pausa y velocidad | «Ⅱ», «0,5×», «1×» y «2×». Disponible contra IA y cooperativo; cualquiera de los compañeros controla el reloj. |
 
 Mover y Avanzar y atacar detienen la unidad ante un enemigo válido, conservan el destino y continúan al perder el objetivo; no persiguen fuera de alcance. «Alto» cancela el destino. El humo es una habilidad y conserva la ruta. Arrastrar mueve la cámara aunque haya una orden seleccionada. Los paneles se abren de uno en uno; funcionan en horizontal y vertical.
+
+### Terreno y ocupación
+
+Árboles aislados, arboledas y bosque denso tienen distintas propiedades de ocultación, paso y protección. Los indicadores propios permanecen seleccionables. Detectar un enemigo con otra unidad no permite disparar a través de una pared. La artillería conserva su fuego indirecto; la aviación puede ver o disparar por encima de obstáculos según las alturas del rayo y del edificio.
+
+Las casas dibujadas corresponden a obstáculos reales. La infantería reserva plaza, camina hasta una puerta y solo recibe protección al entrar. Ocupantes y reservas no pueden superar la capacidad ni mezclar bandos. Dentro conserva su estado y combate desde ventanas exteriores válidas; otras paredes siguen bloqueando. Salir utiliza posiciones exteriores transitables y separadas. La IA puede ocupar edificios próximos a objetivos. La ocupación enemiga no aparece automáticamente a través de la niebla. No hay interiores ni destrucción de edificios.
+
+### Tiempo compartido
+
+La pausa mantiene cámara, zoom, selección y consulta de información. Las órdenes quedan preparadas y sus efectos se aplican al reanudar: no se gastan recursos ni se despliegan tropas durante la pausa. Se validan otra vez al ejecutarse; una orden imposible muestra un aviso. Máximo 64 órdenes preparadas por jugador. Rendirse y abandonar siguen disponibles como decisiones de sesión.
+
+0,5×, 1× y 2× cambian todo el tiempo de juego, incluidos combate, ingresos e IA. Los recursos por minuto de partida permanecen iguales. En cooperativo ambos reciben un único reloj y el nombre de quien lo cambió; reconectar conserva ese estado. Uno contra uno mantiene 1× y sus reglas anteriores. El tiempo transcurrido durante una pausa o una suspensión no se recupera de golpe.
 
 ## Qué significa «multijugador» aquí
 
