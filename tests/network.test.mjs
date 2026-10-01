@@ -4,13 +4,16 @@ import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createServer } from '../server/index.mjs';
 import { Connection } from '../client/network.mjs';
+import { DEFAULT_CONFIG } from '../shared/config.mjs';
 
 async function client(url, options = {}) {
   const ws = new WebSocket(url.replace(/^http/, 'ws') + '/ws', options);
   const inbox = [];
   const pending = new Set();
+  let latestRoom = null;
   ws.on('message', raw => {
     const message = JSON.parse(raw.toString());
+    if (message.type === 'room') latestRoom = message.room;
     for (const request of pending) {
       if (request.predicate(message)) {
         pending.delete(request); clearTimeout(request.timer); request.resolve(message); return;
@@ -23,6 +26,7 @@ async function client(url, options = {}) {
   await once(ws, 'open');
   return {
     ws,
+    get room() { return latestRoom; },
     send(message) { ws.send(JSON.stringify(message)); },
     discard(type) { for (let i = inbox.length - 1; i >= 0; i--) if (inbox[i].type === type) inbox.splice(i, 1); },
     wait(predicate, timeout = 3000) {
@@ -41,24 +45,26 @@ async function client(url, options = {}) {
   };
 }
 
-async function fixture(t, mode = 'versus', options = {}) {
+async function fixture(t, mode = 'versus', options = {}, config) {
   const app = await createServer({ port: 0, ...options });
   t.after(() => app.close());
   const a = await client(app.address.url);
-  a.send({ type: 'create', mode, name: 'Águila' });
+  a.send({ type: 'create', mode, name: 'Águila', config });
   a.identity = await a.wait(m => m.type === 'welcome');
+  await a.wait(m => m.type === 'room');
   const b = mode === 'solo' ? null : await client(app.address.url);
   if (b) {
     b.send({ type: 'join', code: a.identity.code, name: 'Bruma' });
     b.identity = await b.wait(m => m.type === 'welcome');
+    await b.wait(m => m.type === 'room');
     await a.wait(m => m.type === 'room' && m.room.players.length === 2);
   }
   return { app, a, b };
 }
 
 async function start(a, b) {
-  a.send({ type: 'ready', ready: true });
-  if (b) b.send({ type: 'ready', ready: true });
+  a.send({ type: 'ready', ready: true, configRevision: a.room.configRevision });
+  if (b) b.send({ type: 'ready', ready: true, configRevision: b.room.configRevision });
   await a.wait(m => m.type === 'room' && m.room.players.every(p => p.ready));
   a.send({ type: 'start' });
   const firstA = (await a.wait(m => m.type === 'state')).state;
@@ -85,6 +91,110 @@ test('dos WebSockets reales comparten duelo, preparación y autoridad de inicio'
   assert.match((await stranger.wait(m => m.type === 'error')).message, /empezado/);
   stranger.send({ type: 'command', seq: 1, playerId: a.identity.playerId, command: { type: 'stop', unitIds: [] } });
   assert.match((await stranger.wait(m => m.type === 'error')).message, /Primero/);
+});
+
+test('anfitrión sincroniza ajustes; los cambios invalidan preparación y se bloquean al empezar', { timeout: 10000 }, async t => {
+  const { a, b } = await fixture(t);
+  assert.deepEqual(a.room.config, DEFAULT_CONFIG);
+  assert.deepEqual(a.room.config, b.room.config);
+  a.send({ type: 'ready', ready: true, configRevision: 1 });
+  await a.wait(m => m.type === 'room' && m.room.players.find(p => p.id === a.identity.playerId).ready);
+  b.send({ type: 'configure', config: { incomeMultiplier: 5 } });
+  assert.match((await b.wait(m => m.type === 'error')).message, /anfitrión/);
+  a.send({ type: 'configure', config: { startingResources: -1 } });
+  assert.equal((await a.wait(m => m.type === 'error')).type, 'error');
+  a.send({ type: 'configure' });
+  assert.match((await a.wait(m => m.type === 'error')).message, /ajustes/);
+  assert.equal(a.room.configRevision, 1);
+  const config = { ...DEFAULT_CONFIG, mapId: 'frontera-de-los-siete-pasos', startingResources: 940, incomeMultiplier: 3, maxUnits: 60, duration: 900, tickets: 500 };
+  a.send({ type: 'configure', config });
+  const ra = (await a.wait(m => m.type === 'room' && m.room.configRevision === 2)).room;
+  const rb = (await b.wait(m => m.type === 'room' && m.room.configRevision === 2)).room;
+  assert.deepEqual(ra.config, config);
+  assert.deepEqual(ra.config, rb.config);
+  assert.ok(ra.players.every(p => !p.ready));
+  b.send({ type: 'ready', ready: true, configRevision: 1 });
+  assert.match((await b.wait(m => m.type === 'error')).message, /ajustes.*cambiado/i);
+  b.send({ type: 'ready', ready: true });
+  assert.match((await b.wait(m => m.type === 'error')).message, /ajustes.*cambiado/i);
+  const [sa, sb] = await start(a, b);
+  assert.deepEqual(sa.config, config);
+  assert.deepEqual(sa.config, sb.config);
+  assert.equal(sa.mapId, config.mapId);
+  assert.equal(sa.mapId, sb.mapId);
+  assert.equal(sa.duration, 900);
+  assert.deepEqual(sa.tickets, [500, 500]);
+  assert.equal(sa.limits.maxUnits, 60);
+  assert.equal(sa.players.find(p => p.id === a.identity.playerId).credits, 940);
+  assert.equal(sb.players.find(p => p.id === b.identity.playerId).credits, 940);
+  a.send({ type: 'configure', config: DEFAULT_CONFIG });
+  assert.match((await a.wait(m => m.type === 'error')).message, /bloqueados/);
+  a.discard('state'); b.discard('state');
+  const nextA = (await a.wait(m => m.type === 'state' && m.state.time >= .2)).state;
+  const nextB = (await b.wait(m => m.type === 'state' && m.state.tick === nextA.tick)).state;
+  const creditsA = nextA.players.find(p => p.id === a.identity.playerId).credits;
+  const creditsB = nextB.players.find(p => p.id === b.identity.playerId).credits;
+  assert.equal(creditsA, creditsB);
+  assert.ok(Math.abs(creditsA - (940 + 6 * 3 * nextA.time)) < .02, 'Ingresos multiplicados una vez; presupuesto inicial intacto.');
+});
+
+test('crear sala valida ajustes y multiplicador conserva precios en economía compartida', { timeout: 10000 }, async t => {
+  const app = await createServer({ port: 0 });
+  t.after(() => app.close());
+  const invalid = await client(app.address.url);
+  for (const config of [null, [], { incomeMultiplier: 1.3 }, { maxUnits: 121 }, { mapId: 'desconocido' }, { startingResources: '900' }, { priceMultiplier: 2 }]) {
+    invalid.send({ type: 'create', mode: 'solo', config });
+    assert.equal((await invalid.wait(m => m.type === 'error')).type, 'error');
+  }
+  assert.equal((await (await fetch(app.address.url + '/health')).json()).rooms, 0);
+  const { app: coopApp, a, b } = await fixture(t, 'coop', {}, { startingResources: 1000, incomeMultiplier: .5 });
+  const [sa, sb] = await start(a, b);
+  assert.deepEqual(sa.config, sb.config);
+  const game = [...coopApp.wss.clients].find(ws => ws.context?.player.id === a.identity.playerId).context.room.game;
+  assert.ok(game.players.every(p => p.credits === 1000), 'IA y jugadores tienen el mismo presupuesto inicial.');
+  game.aiAt = Infinity; // Prevent AI spending while checking its real authoritative income.
+  const before = game.players.map(p => p.credits);
+  a.send({ type: 'command', seq: 1, command: { type: 'deploy', unitType: 'infantry', x: 160, y: 500 } });
+  assert.equal((await a.wait(m => m.type === 'ack')).ok, true);
+  const state = (await a.wait(m => m.type === 'state' && m.state.tick >= 2)).state;
+  const ownCredits = state.players.find(p => p.id === a.identity.playerId).credits;
+  assert.ok(Math.abs(ownCredits - (1000 - 90 + 6 * .5 * state.time)) < .02, 'El precio sigue siendo 90 y los ingresos se reducen a la mitad.');
+  const increments = game.players.map((p, i) => p.credits - before[i] + (p.id === a.identity.playerId ? 90 : 0));
+  assert.ok(increments.every(value => Math.abs(value - increments[0]) < .0001), 'IA y jugadores reciben la misma tasa real del servidor.');
+});
+
+test('grupo en movimiento se detiene, dispara y reanuda en estados idénticos de dos clientes', { timeout: 12000 }, async t => {
+  const { app, a, b } = await fixture(t, 'coop', { tickMs: 25, snapshotMs: 25 });
+  await start(a, b);
+  const game = [...app.wss.clients].find(ws => ws.context?.player.id === a.identity.playerId).context.room.game;
+  // A deterministic combat fixture is placed inside the real server process.
+  // Commands still travel through TCP and all movement/shooting uses stepGame.
+  game.aiAt = Infinity;
+  game.rng = 42;
+  const group = ['recon', 'infantry'].map(type => game.units.find(u => u.ownerId === a.identity.playerId && u.type === type));
+  const observer = game.units.find(u => u.ownerId === b.identity.playerId && u.type === 'recon');
+  const enemy = game.units.find(u => u.team === 1 && u.type === 'infantry');
+  group.forEach((u, i) => Object.assign(u, { x: 300, y: 485 + i * 30, cooldown: 0, order: 'stop', target: null, path: [] }));
+  Object.assign(observer, { x: 440, y: 650, ammo: 0, path: [] });
+  Object.assign(enemy, { x: 470, y: 500, hp: 45, ammo: 0, order: 'stop', target: null, path: [] });
+  game.units = [...group, observer, enemy];
+  const ammo = group.map(u => u.ammo);
+  a.discard('state'); b.discard('state');
+  a.send({ type: 'command', seq: 1, command: { type: 'move', unitIds: group.map(u => u.id), x: 650, y: 500 } });
+  assert.equal((await a.wait(m => m.type === 'ack')).ok, true);
+  const paused = (await a.wait(m => m.type === 'state' && group.every((unit, i) => m.state.units.some(u => u.id === unit.id && u.combatPaused && !u.moving && u.ammo < ammo[i])), 7000)).state;
+  const shared = (await b.wait(m => m.type === 'state' && m.state.tick === paused.tick)).state;
+  assert.deepEqual(paused.units, shared.units);
+  const pending = group.map(unit => paused.units.find(u => u.id === unit.id));
+  assert.ok(pending.every(u => u.order === 'move' && u.target.x > 600 && u.combatTargetId === enemy.id));
+  const resumed = (await a.wait(m => m.type === 'state' && !m.state.units.some(u => u.id === enemy.id) && pending.every(unit => m.state.units.some(u => u.id === unit.id && u.moving && !u.combatPaused && u.x > unit.x + 2)), 7000)).state;
+  const sharedResumed = (await b.wait(m => m.type === 'state' && m.state.tick === resumed.tick)).state;
+  assert.deepEqual(resumed.units, sharedResumed.units);
+  for (const unit of pending) assert.deepEqual(resumed.units.find(u => u.id === unit.id).target, unit.target);
+  a.send({ type: 'command', seq: 2, command: { type: 'stop', unitIds: group.map(u => u.id) } });
+  assert.equal((await a.wait(m => m.type === 'ack' && m.seq === 2)).ok, true);
+  const stopped = (await a.wait(m => m.type === 'state' && group.every(unit => m.state.units.some(u => u.id === unit.id && u.order === 'stop')))).state;
+  assert.ok(group.every(unit => stopped.units.find(u => u.id === unit.id).target === null));
 });
 
 test('equipo coop compartido, órdenes ajenas rechazadas y gasto idempotente', { timeout: 10000 }, async t => {
@@ -230,7 +340,8 @@ test('cliente de la aplicación recupera una orden sin ack y cierra sesiones cad
   }
   connection.connect(app.address.url, { type: 'create', name: 'Cliente aplicación', mode: 'solo' });
   const welcome = await wait(m => m.type === 'welcome');
-  connection.send({ type: 'ready', ready: true });
+  const room = (await wait(m => m.type === 'room')).room;
+  connection.send({ type: 'ready', ready: true, configRevision: room.configRevision });
   await wait(m => m.type === 'room' && m.room.players.every(p => p.ready));
   connection.send({ type: 'start' });
   const initial = (await wait(m => m.type === 'state')).state;
