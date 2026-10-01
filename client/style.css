@@ -1364,12 +1364,50 @@ select {
   font-size: 12px;
   min-height: 44px;
 }
+#buildingOccupants button:disabled {
+  opacity: 0.85;
+  cursor: default;
+}
 #buildingTitle {
   font-size: 11px;
   letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A personal visual aid beside the clock, clear of the shared match HUD. */
+#revealEnemies {
+  position: absolute;
+  top: calc(var(--safe-t) + 54px);
+  right: var(--safe-r);
+  width: 156px;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 12px;
+  z-index: 6;
+  background: #142633f2;
+}
+#revealEnemies[aria-pressed="true"] {
+  background: #37666b;
+  border-color: var(--cyan);
+}
+.reveal-allowed #toast {
+  top: calc(var(--safe-t) + 126px);
+}
+.config-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.config-check input {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  accent-color: var(--cyan);
 }
 @media (max-width: 700px) {
   #timeControls {
@@ -1405,5 +1443,23 @@ select {
   #deployPanel {
     top: calc(var(--safe-t) + 128px);
     max-height: calc(100% - var(--safe-t) - var(--safe-b) - 245px);
+  }
+}
+@media (min-width: 350px) and (max-width: 380px) {
+  #revealEnemies {
+    width: calc(100% - var(--safe-l) - var(--safe-r) - 206px);
+  }
+}
+@media (max-width: 349px) {
+  #revealEnemies {
+    top: calc(var(--safe-t) + 128px);
+  }
+  .reveal-allowed .secondary,
+  .reveal-allowed #deployPanel {
+    top: calc(var(--safe-t) + 178px);
+    max-height: calc(100% - var(--safe-t) - var(--safe-b) - 295px);
+  }
+  .reveal-allowed #toast {
+    top: calc(var(--safe-t) + 178px);
   }
 }
