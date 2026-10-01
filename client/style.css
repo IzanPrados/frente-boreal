@@ -1308,3 +1308,102 @@ select {
   min-height: 44px;
   white-space: normal;
 }
+/* Simulation time remains reachable without a modal or a paused camera. */
+#timeControls {
+  position: absolute;
+  top: var(--safe-t);
+  left: var(--safe-l);
+  width: 198px;
+  border-radius: 6px;
+  padding: 3px;
+  z-index: 6;
+}
+.time-buttons {
+  display: flex;
+  gap: 3px;
+}
+.time-buttons button {
+  padding: 6px;
+  min-height: 44px;
+  flex: 1;
+  font-size: 13px;
+}
+#timeStatus {
+  display: block;
+  height: 18px;
+  padding: 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  color: #b6cecd;
+}
+.secondary,
+#deployPanel {
+  top: calc(var(--safe-t) + 76px);
+  max-height: calc(100% - var(--safe-t) - var(--safe-b) - 190px);
+}
+#buildingPanel {
+  width: 310px;
+}
+.building-actions {
+  display: flex;
+  gap: 8px;
+  margin: 10px;
+}
+.building-actions button {
+  flex: 1;
+}
+#buildingOccupants {
+  display: grid;
+  gap: 6px;
+  margin: 10px;
+}
+#buildingOccupants button {
+  text-align: left;
+  font-size: 12px;
+  min-height: 44px;
+}
+#buildingTitle {
+  font-size: 11px;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  #timeControls {
+    top: calc(var(--safe-t) + 54px);
+  }
+  .secondary,
+  #deployPanel {
+    top: calc(var(--safe-t) + 128px);
+    max-height: calc(100% - var(--safe-t) - var(--safe-b) - 245px);
+  }
+  #sectorHud {
+    gap: 2px;
+  }
+  .sector {
+    min-width: 13px;
+  }
+  #toast {
+    top: calc(var(--safe-t) + 126px);
+  }
+}
+@media (max-height: 500px) and (min-width: 701px) {
+  .secondary,
+  #deployPanel {
+    top: calc(var(--safe-t) + 76px);
+    max-height: calc(100% - var(--safe-t) - var(--safe-b) - 78px);
+  }
+}
+@media (min-width: 701px) and (max-width: 1000px) and (min-height: 501px) {
+  #timeControls {
+    top: calc(var(--safe-t) + 54px);
+  }
+  .secondary,
+  #deployPanel {
+    top: calc(var(--safe-t) + 128px);
+    max-height: calc(100% - var(--safe-t) - var(--safe-b) - 245px);
+  }
+}
