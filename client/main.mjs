@@ -139,6 +139,18 @@ function updateTimeControls() {
     (state.pendingOrders ? " · " + state.pendingOrders + " órdenes" : "");
   $("timeStatus").title = $("timeStatus").textContent;
 }
+function updateRevealControl() {
+  const allowed =
+    playing && !gameEnded && state?.config?.allowEnemyReveal === true;
+  const button = $("revealEnemies");
+  button.hidden = !allowed;
+  button.disabled = !!state?.paused;
+  button.setAttribute("aria-pressed", String(state?.revealEnemies === true));
+  button.textContent = state?.revealEnemies
+    ? "Ocultar enemigos"
+    : "Mostrar enemigos";
+  $("app").classList.toggle("reveal-allowed", allowed);
+}
 function commandFeedback(data) {
   if (
     data.type === "error" ||
@@ -166,9 +178,7 @@ function updateBuilding() {
   }
   const status = state?.buildings?.find((b) => b.id === building.id);
   const occupants =
-    state?.units.filter(
-      (u) => u.garrisonedIn === building.id && u.team === me()?.team,
-    ) ?? [];
+    state?.units.filter((u) => u.garrisonedIn === building.id) ?? [];
   const ownOccupants = occupants.filter((u) => u.ownerId === playerId);
   const infantry =
     state?.units.filter(
@@ -186,22 +196,34 @@ function updateBuilding() {
         ? occupants.length +
           " ocupadas" +
           (status.reserved ? " · " + status.reserved + " reservadas" : "")
-        : "Ocupación no confirmada")
+        : status?.occupied > 0
+          ? status.occupied +
+            (status.displayOnly
+              ? " enemigas · solo mostradas"
+              : " enemigas detectadas")
+          : "Ocupación no confirmada")
     : "Edificio sólido · no admite ocupación";
-  $("buildingHelp").textContent = building.occupiable
-    ? "La infantería llega al acceso antes de entrar. Recibe protección dentro; Mover ordena salir y continuar."
-    : "Bloquea el paso terrestre, la visión y el fuego directo a través de sus paredes.";
+  $("buildingHelp").textContent = status?.displayOnly
+    ? "Ocupación mostrada por la ayuda visual. No implica detección ni permite disparar a través de las paredes."
+    : building.occupiable
+      ? "La infantería llega al acceso antes de entrar. Recibe protección dentro; Mover ordena salir y continuar."
+      : "Bloquea el paso terrestre, la visión y el fuego directo a través de sus paredes.";
   $("buildingOccupants").replaceChildren();
   for (const unit of occupants) {
     const button = document.createElement("button");
     button.textContent =
-      UNIT_TYPES[unit.type].short +
-      " · " +
-      Math.ceil(unit.hp) +
-      " PV · " +
-      Math.floor(unit.ammo) +
-      " munición" +
-      (unit.ownerId === playerId ? "" : " · aliado");
+      unit.team !== me()?.team
+        ? UNIT_TYPES[unit.type].short +
+          (unit.displayOnly
+            ? " · enemiga solo mostrada"
+            : " · enemiga detectada")
+        : UNIT_TYPES[unit.type].short +
+          " · " +
+          Math.ceil(unit.hp) +
+          " PV · " +
+          Math.floor(unit.ammo) +
+          " munición" +
+          (unit.ownerId === playerId ? "" : " · aliado");
     button.disabled = unit.ownerId !== playerId;
     button.onclick = () => {
       select([unit.id]);
@@ -210,7 +232,10 @@ function updateBuilding() {
     $("buildingOccupants").append(button);
   }
   $("enterBuilding").hidden = !building.occupiable;
-  $("enterBuilding").disabled = !infantry.length || !!me()?.surrendered;
+  $("enterBuilding").disabled =
+    !infantry.length ||
+    !!me()?.surrendered ||
+    (status?.occupied > 0 && status.team !== me()?.team);
   $("exitBuilding").hidden = !ownOccupants.length;
   $("exitBuilding").disabled = !!me()?.surrendered;
 }
@@ -487,6 +512,7 @@ function onState(next) {
   updateSelection();
   updateOrderHint();
   updateTimeControls();
+  updateRevealControl();
   updateBuilding();
   if (state.status === "finished" && !gameEnded) {
     gameEnded = true;
@@ -553,7 +579,8 @@ function updateRoom(next) {
     config.duration / 60 +
     " min · " +
     config.tickets +
-    " puntos";
+    " puntos · Mostrar tropas enemigas: " +
+    (config.allowEnemyReveal ? "permitido para cada jugador" : "no permitido");
   $("lobbyConfigVersion").textContent =
     "Ajustes " + room.configRevision + " · revisa antes de prepararte";
   $("editConfig").hidden = room.hostId !== playerId || playing;
@@ -711,8 +738,10 @@ function reset() {
     "helpScreen",
     "buildingPanel",
     "timeControls",
+    "revealEnemies",
   ])
     $(id).hidden = true;
+  $("app").classList.remove("reveal-allowed");
   $("startScreen").hidden = false;
 }
 function setPause(value) {
@@ -771,6 +800,13 @@ document.querySelectorAll("[data-speed]").forEach(
       else connection?.send(message);
     }),
 );
+$("revealEnemies").onclick = () => {
+  if (!playing || gameEnded || !state?.config?.allowEnemyReveal || state.paused)
+    return;
+  const message = { type: "reveal", enabled: !state.revealEnemies };
+  if (mode === "solo") worker?.postMessage(message);
+  else connection?.send(message);
+};
 $("enterBuilding").onclick = () => {
   const infantry =
     state?.units
@@ -921,6 +957,7 @@ function fillConfig(config) {
   $("configUnits").value = config.maxUnits;
   $("configDuration").value = config.duration / 60;
   $("configTickets").value = config.tickets;
+  $("configReveal").checked = config.allowEnemyReveal === true;
   $("configError").textContent = "";
   describeMap();
 }
@@ -977,6 +1014,7 @@ $("configForm").onsubmit = (e) => {
     maxUnits: Number($("configUnits").value),
     duration: Number($("configDuration").value) * 60,
     tickets: Number($("configTickets").value),
+    allowEnemyReveal: $("configReveal").checked,
   });
   if (!result.ok) {
     $("configError").textContent = result.error;
