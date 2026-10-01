@@ -45,7 +45,7 @@ Se corrigieron rutas que rozaban esquinas de agua y destinos válidos de orillas
 
 - **49/49 pruebas Node:** 27 de simulación y movimiento, 9 de mapas/configuración y 13 de servidor/red. Movimiento normal/grupos, detenerse/disparar/reanudar, objetivos ocultos/fuera de alcance, cambios de órdenes, munición, compatibilidad, logística, artillería, transporte, captura, IA, economía, propiedad, reconexión y caché.
 - **Dos clientes TCP/WebSocket reales locales:** ajustes compartidos, preparación invalidada, bloqueo al iniciar, precios e ingresos coherentes y grupo que se detiene, combate y reanuda con estados idénticos.
-- **7/7 comprobaciones de navegador locales:** duelo, cooperativo, teléfono horizontal 844 × 390, teléfono vertical 390 × 844, tableta 1024 × 768, cambio de tres mapas sin recargar y funcionamiento sin conexión. Controles de al menos 44 px y 89–95 % de los puntos muestreados libres de controles durante la observación inicial.
+- **7/7 comprobaciones de navegador, tanto locales como sobre la URL pública de Render:** duelo, cooperativo, teléfono horizontal 844 × 390, teléfono vertical 390 × 844, tableta 1024 × 768, cambio de tres mapas sin recargar y funcionamiento sin conexión. Controles de al menos 44 px y 89–95 % de los puntos muestreados libres de controles durante la observación inicial. Cero errores de página en la ejecución pública.
 - Cancelación táctil de movimiento y despliegue, selección/grupos, pan/pellizco, apertura y cierre de paneles sin órdenes fantasma, conservación de identidad al recargar y final de ambos modos online.
 - PWA: 20 recursos, incluidos mapas y configuración; recarga con red bloqueada y partida individual hasta tick 31.
 - **3000 rutas de comprobación:** ninguna vacía. Rutas reales desde ambas bases a todos los objetivos nuevos sin entrar en agua. Partidas completas de IA en los dos escenarios nuevos, contra un jugador inactivo: victorias por puntos a 142,7 y 169,9 s; capturas de 5/5 y 6/7 objetivos.
@@ -56,11 +56,15 @@ Las pruebas de navegador usan Edge/Chromium en Windows con contextos aislados y 
 
 Con 120 unidades sostenidas en el mapa grande, el p95 de simulación fue 0,858 ms; generar y serializar el estado, 0,425 ms por cliente. La búsqueda de rutas de un grupo de 60 pasó de 181,4 a 36,2 ms p95 mediante índice espacial, enlaces de navegación y cola de prioridad.
 
-La geometría fija de cada unidad se agrupa por material. En una colocación controlada de 120 unidades, el mapa grande conservó sus 45440 triángulos y pasó de 957 a 377 llamadas de dibujo. La muestra de seis segundos a 1440 × 900 dio 240 FPS limitados por pantalla en RTX 3060; no demuestra rendimiento móvil ni estabilidad durante una partida larga. Condiciones y datos: [RENDIMIENTO.md](RENDIMIENTO.md).
+La geometría fija de cada unidad se agrupa por material. En una colocación controlada de 120 unidades, el mapa grande conservó sus 45440 triángulos y pasó de 957 a 377 llamadas de dibujo. La muestra de seis segundos a 1440 × 900 dio 240 FPS observados en RTX 3060; no demuestra rendimiento móvil ni estabilidad durante una partida larga. Condiciones y datos: [RENDIMIENTO.md](RENDIMIENTO.md).
 
 ## Publicación y límites
 
-Se conserva el servicio Render existente, identificado como Free. No se añadió tarjeta, suscripción, servicio de pago ni apertura de red del ordenador. El servidor local escucha solo en 127.0.0.1. El código de la actualización se publica en el repositorio existente y requiere desplegarlo en Render.
+Render confirmó **Deploy succeeded / Live** para la actualización el 1 de octubre de 2026, con servicio activo a las **23:05:55 de Madrid**. Despliegue: `dep-davcm6qd0e5s73ffjldg`. Código ejecutado: `805721dfe3b702e4f4885dbcb646e4cbb8603915`. Versión PWA: `9a850be6f810e6b226e8`. Se compararon los archivos principales publicados con los locales y se repitió la batería de navegador sobre HTTPS/WSS.
+
+Se conserva el servicio Render existente, identificado como Free. No se añadió tarjeta, suscripción, servicio de pago ni apertura de red del ordenador. El servidor local escucha solo en 127.0.0.1. Los commits posteriores de documentación y pruebas no alteran los archivos del juego desplegado.
+
+Para recibir la actualización: abre el juego con Internet y pulsa **Actualizar** cuando aparezca en la pantalla de operaciones. Termina primero cualquier partida. La PWA conserva la versión anterior hasta que la nueva descarga esté completa.
 
 - Pendiente de verificar físicamente: Safari en iPhone/iPad, pantalla de inicio, bordes seguros reales, orientación, cambios de aplicación, temperatura y FPS durante una partida completa.
 - Dos contextos del mismo PC, aunque conecten al servidor público, no equivalen a dos dispositivos o redes distintas. Falta esa prueba física.
