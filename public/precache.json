@@ -1,14 +1,14 @@
 {
   "version": "0.1.0",
-  "revision": "0f1226e5c04577529b43",
+  "revision": "9a850be6f810e6b226e8",
   "files": [
     {
       "url": "/client/controls.mjs",
-      "revision": "b731a81101dfab9c598c8e2d318f003ea085b72dac95f75e3a26d206b8b16663"
+      "revision": "9f0d8217c0308b88cb68bbc5f29f7be1974486538948e873c4a5e0a4d6131c65"
     },
     {
       "url": "/client/main.mjs",
-      "revision": "a0807821ec83a017c0f3afb116c50103d97748ca424e0deab1118cccdf58798e"
+      "revision": "cd053fc4b01204d1f5541a3816cb16cab03e8b6bd7fe45c5dc06c1d25a284e6b"
     },
     {
       "url": "/client/network.mjs",
@@ -16,15 +16,15 @@
     },
     {
       "url": "/client/renderer.mjs",
-      "revision": "57b6f106238947fbf66edb3c834abaa68ff6694aefe174571ab1df6964a5e7c7"
+      "revision": "6a52ec978b080be2c1b3a2dee69451be976d72b0a0561f2800bfad1999cabe59"
     },
     {
       "url": "/client/solo-worker.mjs",
-      "revision": "fe4490598f4c54a666f91e0fefb272ff10cbd89dc00adb59905937d0812937bf"
+      "revision": "f68dc5302cf5d87dd8d9c05f0bfec1df9fff8d31171f93e68cd4bd57aadd7acb"
     },
     {
       "url": "/client/style.css",
-      "revision": "f5d5ef3130562f0f2bf174d703156ccb2c76578b16de29aebfd79d5a198baa0d"
+      "revision": "1c9475d8cf32c6a84f5817d6d39a60281c179102a58a118146f9d9ebd79f60cf"
     },
     {
       "url": "/icons/icon-192.png",
@@ -44,19 +44,27 @@
     },
     {
       "url": "/index.html",
-      "revision": "2ca8ec0117ef31f0dbd519e8d2e8fd6d9e5c9a4dd5d48e169bae0cdfde4e8824"
+      "revision": "5f9b41af2e93b40ffb6322a7b0a0e99c663715d0c571d760ae790294317f71e3"
     },
     {
       "url": "/manifest.webmanifest",
-      "revision": "e82405a0f5704e0f8bbafbfcdcd07bd1f13f41096c7f6997ea5e99f8c4684a59"
+      "revision": "23bd9d4057f9cc13de45547a7f119b5783d9487f2a907638fa57b4c733ef479a"
+    },
+    {
+      "url": "/shared/config.mjs",
+      "revision": "4a31313a9ef3150cb68d95bc3bb302ecd4d7ee392bb05f944ac386a8701bde4a"
     },
     {
       "url": "/shared/data.mjs",
       "revision": "c1057e5f25a475092d0e64bec4a42525ee83d2bf2baad08b46ef97db736af346"
     },
     {
+      "url": "/shared/maps.mjs",
+      "revision": "f2e3444d67cc9c0c4efd625f54e69f7ffecedd4f020f29154c5f0f1ec26cc744"
+    },
+    {
       "url": "/shared/sim.mjs",
-      "revision": "48ab910fc59acee5351edef5f54bc05b18076f23e2210f3bbeee0e8c71e475af"
+      "revision": "1f83b14e7bfd98e91ec14e1ae7d1bd54d86d2ec533879dc949d266bdda95eada"
     },
     {
       "url": "/vendor/THREE-LICENSE.txt",
