@@ -2,6 +2,12 @@
 
 Prototipo editable de combate táctico en tiempo real para navegador, con gráficos 3D sencillos y controles táctiles. Proyecto original e independiente; WARNO es una referencia de diseño, no un producto incluido ni una afiliación.
 
+**[Jugar ahora](https://frente-boreal.onrender.com)** · **[Código en GitHub](https://github.com/IzanPrados/frente-boreal)**
+
+Publicación real en Render Free, Frankfurt. No hace falta dejar encendido tu ordenador. La instancia puede dormir por inactividad y tardar aproximadamente un minuto en despertar. El modo individual y ambos modos multijugador están implementados; las pruebas físicas de Safari y de dos dispositivos/redes siguen pendientes.
+
+En el ordenador de esta entrega también puedes abrir `Iniciar-juego.cmd`: usa Node ya disponible y escucha solo en este equipo. Si arrancas desde una copia nueva, instala primero las dependencias como se indica debajo.
+
 La primera entrega no equivale al objetivo final. El registro de lo implementado, las pruebas reales y los límites está en [docs/ESTADO.md](docs/ESTADO.md). La investigación de Safari y alojamiento gratuito está en [docs/INVESTIGACION.md](docs/INVESTIGACION.md).
 
 ## Ejecutar en tu ordenador
@@ -80,7 +86,7 @@ Safari debe permitir almacenamiento local y service workers. El sistema operativ
 
 ## Publicar gratis con Render
 
-`render.yaml` prepara **una instancia web Free** para servir cliente y WebSocket juntos. No demuestra un despliegue realizado; solo existirá una dirección pública cuando Render confirme uno.
+Esta entrega ya está publicada en la dirección indicada arriba. `render.yaml` permite reproducir **una instancia web Free** para servir cliente y WebSocket juntos; los pasos siguientes son para otro despliegue. Los cambios en un repositorio público conectado manualmente pueden requerir «Manual Deploy» en Render.
 
 1. Inicia sesión directamente en Render y en tu proveedor Git, sin compartir contraseñas ni tokens en el chat.
 2. Sube el proyecto a un repositorio autorizado e importa `render.yaml` mediante un Blueprint, o crea un Web Service con los valores de ese archivo.
@@ -118,3 +124,4 @@ docs/          Estado del proyecto e investigación
 ```
 
 La representación gráfica lee la simulación; cambiar resolución o efectos no modifica sus reglas. Estadísticas y mapa están en `shared/data.mjs`. No se incluyen campañas, tienda ni clasificaciones. Licencia del código propio: [MIT](LICENSE). Dependencias y procedencia: [THIRD_PARTY](THIRD_PARTY.md).
+
