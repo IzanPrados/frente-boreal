@@ -183,7 +183,7 @@ test('enemy occupation and reservation details stay hidden until occupants are d
   position(own, 100, 100); position(enemy, 710, 500); game.units = [own, enemy]; enter(game, enemy);
   let state = snapshotFor(game, 'alice');
   assert.ok(!state.units.some(unit => unit.id === enemy.id));
-  assert.deepEqual(state.buildings[0], { id: 'house', team: null, known: false, observed: false, occupied: null, reserved: null, occupantIds: [] });
+  assert.deepEqual(state.buildings[0], { id: 'house', team: null, known: false, observed: false, displayOnly: false, occupied: null, reserved: null, occupantIds: [] });
   position(own, 750, 620);
   state = snapshotFor(game, 'alice');
   assert.ok(state.units.some(unit => unit.id === enemy.id && unit.garrisonedIn === 'house'));
