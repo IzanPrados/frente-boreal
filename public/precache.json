@@ -1,6 +1,6 @@
 {
-  "version": "0.3.0",
-  "revision": "1d4641810735ca36f964",
+  "version": "0.4.0",
+  "revision": "22da24dbfd0bacdaf16b",
   "files": [
     {
       "url": "/client/controls.mjs",
@@ -12,7 +12,11 @@
     },
     {
       "url": "/client/main.mjs",
-      "revision": "b8f8ac51312f9b45bfbafaad683a2f9d00f58e8d29e3d5148d5aad8aa99ba13d"
+      "revision": "2f4882ffd6e4be2986fea685d46a2ab04994b013d83500aafffcc2e19dd5decd"
+    },
+    {
+      "url": "/client/models.mjs",
+      "revision": "9fb208e545913e96b9078cc92215b7954e8809724df82706bab11ce652b2b080"
     },
     {
       "url": "/client/network.mjs",
@@ -20,15 +24,19 @@
     },
     {
       "url": "/client/renderer.mjs",
-      "revision": "71f0b4700fa95b573443f5da7e3a0838423d68604e04513aea20e4d513a02302"
+      "revision": "e088af8734d5276f3b3a54a75c9d7e48964809ada99c752f6d5510276402bcb2"
     },
     {
       "url": "/client/solo-worker.mjs",
-      "revision": "79be352beca5bc65207b6fc813fd7ad4ddb026bbff5fd687520d556c51b0f430"
+      "revision": "db4a8cfa550751dbdae29fc956708f5a26b7a48cdf8a7591e2b1d09839a2e8d1"
     },
     {
       "url": "/client/style.css",
-      "revision": "444f9767bbc403c928bcc16424eda4692fe9f2046ca0e9b3082e813afdff33aa"
+      "revision": "13db395533d9267588a2deea38a4b39e9cbebca887be1dfe8d2ae2bbdd678e90"
+    },
+    {
+      "url": "/client/symbols.mjs",
+      "revision": "2fd274f8cb505de2989c4cc6f8ac1bf20e3b9bc2be89e1dee30f090be7cfd2da"
     },
     {
       "url": "/icons/icon-192.png",
@@ -48,7 +56,7 @@
     },
     {
       "url": "/index.html",
-      "revision": "9855e7df69903f86bd0e08bc5a746f6b282c3f98a5eb627342f1064a4bb8e05d"
+      "revision": "01f6caaa52012fc51d9930d937ca346a00f43ed9b6da3109f2589b79dafacd23"
     },
     {
       "url": "/manifest.webmanifest",
@@ -56,11 +64,11 @@
     },
     {
       "url": "/shared/config.mjs",
-      "revision": "4a31313a9ef3150cb68d95bc3bb302ecd4d7ee392bb05f944ac386a8701bde4a"
+      "revision": "8d12e920ea9174a695fc914eed334bc788a5e2d03a946eef7a7af1dfa4f6298f"
     },
     {
       "url": "/shared/data.mjs",
-      "revision": "c1057e5f25a475092d0e64bec4a42525ee83d2bf2baad08b46ef97db736af346"
+      "revision": "cdefa721a51c19e5f9bf154f78c2f882f6a55a2b93d6aa6a722d94b9d40e0776"
     },
     {
       "url": "/shared/maps.mjs",
@@ -72,7 +80,7 @@
     },
     {
       "url": "/shared/sim.mjs",
-      "revision": "b133a7f059234cc93d7b3c8b07675ce90e6150221807b9a793ae9297b65f2439"
+      "revision": "8d7bafae6db665d41992e38fd45ad90ac94a1f61d275f67418f09d4e300d18d1"
     },
     {
       "url": "/shared/terrain.mjs",
