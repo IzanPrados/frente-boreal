@@ -87,6 +87,7 @@ let view,
 let matchConfig = normalizeConfig(
   storage.get("fb-match-config", DEFAULT_CONFIG),
 );
+let activeBuildingId = null;
 const map = () =>
   getMap(state?.config?.mapId ?? state?.mapId ?? matchConfig.mapId);
 const panelButtons = {
@@ -94,20 +95,124 @@ const panelButtons = {
   mapPanel: "mapToggle",
   groupPanel: "groupToggle",
   unitPanel: "unitToggle",
+  buildingPanel: null,
 };
 function closePanels() {
   for (const [id, button] of Object.entries(panelButtons)) {
     $(id).hidden = true;
-    $(button).setAttribute("aria-expanded", "false");
+    if (button) $(button).setAttribute("aria-expanded", "false");
   }
+  activeBuildingId = null;
+  view?.setBuildingContext(null, false);
+  updateTimeControls();
 }
 function togglePanel(id) {
   const open = $(id).hidden;
   closePanels();
   if (open) {
     $(id).hidden = false;
-    $(panelButtons[id]).setAttribute("aria-expanded", "true");
+    if (panelButtons[id])
+      $(panelButtons[id]).setAttribute("aria-expanded", "true");
   }
+  updateTimeControls();
+}
+function updateTimeControls() {
+  const clock = state?.timeControl;
+  $("timeControls").hidden =
+    !playing || gameEnded || !clock || mode === "versus" || mode === "pvp";
+  document.querySelectorAll("[data-speed]").forEach((button) => {
+    button.setAttribute(
+      "aria-pressed",
+      String(
+        Number(button.dataset.speed) === (clock?.paused ? 0 : clock?.speed),
+      ),
+    );
+    button.disabled = !!me()?.surrendered || !!state?.paused;
+  });
+  if (!clock) return;
+  const rate = clock.paused
+    ? "En pausa"
+    : String(clock.speed).replace(".", ",") + "×";
+  $("timeStatus").textContent =
+    rate +
+    (clock.changedByName ? " · " + clock.changedByName : "") +
+    (state.pendingOrders ? " · " + state.pendingOrders + " órdenes" : "");
+  $("timeStatus").title = $("timeStatus").textContent;
+}
+function commandFeedback(data) {
+  if (
+    data.type === "error" ||
+    (["ack", "commandResult"].includes(data.type) && !data.ok)
+  )
+    toast(data.message || data.error);
+  else if (data.type === "ack" && data.queued)
+    toast("Orden preparada. Se ejecutará al continuar.");
+}
+function openBuilding(building) {
+  closePanels();
+  activeBuildingId = building.id;
+  $("buildingPanel").hidden = false;
+  view?.setBuildingContext(building.id, true);
+  updateBuilding();
+}
+function updateBuilding() {
+  if (!activeBuildingId) return;
+  const building = (map().buildings ?? []).find(
+    (b) => b.id === activeBuildingId,
+  );
+  if (!building) {
+    closePanels();
+    return;
+  }
+  const status = state?.buildings?.find((b) => b.id === building.id);
+  const occupants =
+    state?.units.filter(
+      (u) => u.garrisonedIn === building.id && u.team === me()?.team,
+    ) ?? [];
+  const ownOccupants = occupants.filter((u) => u.ownerId === playerId);
+  const infantry =
+    state?.units.filter(
+      (u) =>
+        selected.includes(u.id) &&
+        u.type === "infantry" &&
+        !u.loadedIn &&
+        !u.garrisonedIn,
+    ) ?? [];
+  $("buildingTitle").textContent = building.name;
+  $("buildingStatus").textContent = building.occupiable
+    ? building.capacity +
+      " plazas · " +
+      (status?.team === me()?.team
+        ? occupants.length +
+          " ocupadas" +
+          (status.reserved ? " · " + status.reserved + " reservadas" : "")
+        : "Ocupación no confirmada")
+    : "Edificio sólido · no admite ocupación";
+  $("buildingHelp").textContent = building.occupiable
+    ? "La infantería llega al acceso antes de entrar. Recibe protección dentro; Mover ordena salir y continuar."
+    : "Bloquea el paso terrestre, la visión y el fuego directo a través de sus paredes.";
+  $("buildingOccupants").replaceChildren();
+  for (const unit of occupants) {
+    const button = document.createElement("button");
+    button.textContent =
+      UNIT_TYPES[unit.type].short +
+      " · " +
+      Math.ceil(unit.hp) +
+      " PV · " +
+      Math.floor(unit.ammo) +
+      " munición" +
+      (unit.ownerId === playerId ? "" : " · aliado");
+    button.disabled = unit.ownerId !== playerId;
+    button.onclick = () => {
+      select([unit.id]);
+      openBuilding(building);
+    };
+    $("buildingOccupants").append(button);
+  }
+  $("enterBuilding").hidden = !building.occupiable;
+  $("enterBuilding").disabled = !infantry.length || !!me()?.surrendered;
+  $("exitBuilding").hidden = !ownOccupants.length;
+  $("exitBuilding").disabled = !!me()?.surrendered;
 }
 
 function toast(text) {
@@ -144,6 +249,11 @@ function select(ids) {
 }
 function updateSelection() {
   const units = state?.units.filter((u) => selected.includes(u.id)) ?? [];
+  view?.setBuildingContext(
+    activeBuildingId,
+    order === "garrison" ||
+      units.some((u) => u.type === "infantry" && !u.garrisonedIn),
+  );
   $("selectionPanel").hidden =
     !playing || !units.length || !!order || !!deployType || !!me()?.surrendered;
   if (!units.length) {
@@ -157,7 +267,12 @@ function updateSelection() {
       ? UNIT_TYPES[u.type].short +
         " · " +
         Math.ceil((u.hp / u.maxHp) * 100) +
-        "%"
+        "%" +
+        (u.garrisonedIn
+          ? " · dentro"
+          : u.pendingBuildingId
+            ? " · entrando"
+            : "")
       : units.length + " unidades";
   $("unitSummary").textContent =
     units.length === 1
@@ -193,7 +308,12 @@ function updateSelection() {
       (o === "fire" && !units.some((u) => u.type === "artillery")) ||
       (o === "load" && !units.some((u) => u.type === "infantry")) ||
       (o === "unload" && !units.some((u) => u.cargo?.length)) ||
-      (o === "smoke" && !units.some((u) => u.smoke > 0))
+      (o === "smoke" && !units.some((u) => u.smoke > 0)) ||
+      (o === "garrison" &&
+        !units.some(
+          (u) => u.type === "infantry" && !u.garrisonedIn && !u.loadedIn,
+        )) ||
+      (o === "exit" && !units.some((u) => u.garrisonedIn))
     );
     b.hidden = !allowed;
     b.disabled = !!me()?.surrendered;
@@ -207,6 +327,7 @@ function updateOrderHint() {
     fire: "Toca la zona de fuego para la artillería",
     smoke: "Toca dónde desplegar humo",
     load: "Toca un transporte propio cercano",
+    garrison: "Toca un edificio señalado para entrar",
   };
   const pending = !!order || !!deployType;
   const message = state?.paused
@@ -263,7 +384,23 @@ function tap(x, y, shift) {
     return;
   }
   if (order) {
-    if (order === "load") {
+    if (order === "garrison") {
+      const building = view.pickBuilding(x, y);
+      if (!building?.occupiable) {
+        toast("Toca un edificio ocupable señalado.");
+        return;
+      }
+      const infantry = state.units
+        .filter(
+          (u) =>
+            selected.includes(u.id) &&
+            u.type === "infantry" &&
+            !u.garrisonedIn &&
+            !u.loadedIn,
+        )
+        .map((u) => u.id);
+      send({ type: "garrison", unitIds: infantry, buildingId: building.id });
+    } else if (order === "load") {
       const t = view.pick(x, y, true);
       if (t?.type !== "transport") {
         toast("Toca un transporte propio.");
@@ -284,7 +421,15 @@ function tap(x, y, shift) {
           : [...selected, u.id]
         : [u.id],
     );
-  } else if (!multi) select([]);
+    if (u.garrisonedIn) {
+      const building = map().buildings.find((b) => b.id === u.garrisonedIn);
+      if (building) openBuilding(building);
+    }
+  } else {
+    const building = view.pickBuilding(x, y);
+    if (building) openBuilding(building);
+    else if (!multi) select([]);
+  }
 }
 function showGame() {
   playing = true;
@@ -341,6 +486,8 @@ function onState(next) {
     `${state.units.filter((u) => u.team === me()?.team).length} aliadas`;
   updateSelection();
   updateOrderHint();
+  updateTimeControls();
+  updateBuilding();
   if (state.status === "finished" && !gameEnded) {
     gameEnded = true;
     pause = false;
@@ -374,8 +521,7 @@ function startSolo() {
   groups = {};
   worker.onmessage = ({ data }) => {
     if (data.type === "state") onState(data.state);
-    else if (data.type === "error" || (data.type === "ack" && !data.ok))
-      toast(data.message || data.error);
+    else commandFeedback(data);
   };
   worker.onerror = (e) => toast("La simulación no pudo arrancar: " + e.message);
   worker.postMessage({
@@ -462,8 +608,11 @@ function onNetwork(data) {
     mode = data.room.mode;
     updateRoom(data.room);
   } else if (data.type === "state") onState(data.state);
-  else if (data.type === "error" || (data.type === "ack" && !data.ok)) {
-    toast(data.message || data.error);
+  else if (
+    data.type === "error" ||
+    ["ack", "commandResult"].includes(data.type)
+  ) {
+    commandFeedback(data);
     if (!playing && !room) {
       $("configScreen").hidden = true;
       $("startScreen").hidden = false;
@@ -560,6 +709,8 @@ function reset() {
     "unitPanel",
     "groupPanel",
     "helpScreen",
+    "buildingPanel",
+    "timeControls",
   ])
     $(id).hidden = true;
   $("startScreen").hidden = false;
@@ -611,7 +762,40 @@ $("copyInvite").onclick = async () => {
   }
 };
 for (const [panel, button] of Object.entries(panelButtons))
-  $(button).onclick = () => togglePanel(panel);
+  if (button) $(button).onclick = () => togglePanel(panel);
+document.querySelectorAll("[data-speed]").forEach(
+  (button) =>
+    (button.onclick = () => {
+      const message = { type: "time", speed: Number(button.dataset.speed) };
+      if (mode === "solo") worker?.postMessage(message);
+      else connection?.send(message);
+    }),
+);
+$("enterBuilding").onclick = () => {
+  const infantry =
+    state?.units
+      .filter(
+        (u) =>
+          selected.includes(u.id) &&
+          u.type === "infantry" &&
+          !u.loadedIn &&
+          !u.garrisonedIn,
+      )
+      .map((u) => u.id) ?? [];
+  if (infantry.length)
+    send({ type: "garrison", unitIds: infantry, buildingId: activeBuildingId });
+  closePanels();
+};
+$("exitBuilding").onclick = () => {
+  const ids =
+    state?.units
+      .filter(
+        (u) => u.ownerId === playerId && u.garrisonedIn === activeBuildingId,
+      )
+      .map((u) => u.id) ?? [];
+  if (ids.length) send({ type: "exit", unitIds: ids });
+  closePanels();
+};
 $("closeDeploy").onclick = closePanels;
 document
   .querySelectorAll("[data-close]")
@@ -639,8 +823,16 @@ document.querySelectorAll("[data-order]").forEach(
   (b) =>
     (b.onclick = () => {
       const type = b.dataset.order;
-      if (["stop", "unload", "resupply"].includes(type)) {
-        send({ type, unitIds: selected });
+      if (["stop", "unload", "resupply", "exit"].includes(type)) {
+        send({
+          type,
+          unitIds:
+            type === "exit"
+              ? selected.filter((id) =>
+                  state.units.some((u) => u.id === id && u.garrisonedIn),
+                )
+              : selected,
+        });
         setOrder(null);
       } else setOrder(order === type ? null : type);
     }),
@@ -899,6 +1091,8 @@ window.__FB__ = {
     return view ? { ...view.center, zoom: view.zoom } : null;
   },
   project: (x, y, h) => view?.screenAt(x, y, h),
+  projectUnit: (unit) => view?.unitScreen(unit),
+  projectBuilding: (building) => view?.buildingScreen(building),
 };
 if (!$("serverUrl").value)
   fetch("/health", { cache: "no-store" })
