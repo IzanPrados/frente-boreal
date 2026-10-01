@@ -1,7 +1,7 @@
 {
   "runtime": "v24.19.0",
   "platform": "win32/x64",
-  "timestamp": "2026-10-01T20:59:01.018Z",
+  "timestamp": "2026-10-01T21:44:07.660Z",
   "note": "CPU simulation and JSON only; no rendering, transport, mobile Safari or FPS measured. Bandwidth excludes WebSocket/TLS overhead and compression. Budgets are desktop regression targets, not device guarantees.",
   "desktopBudgets": {
     "simulationP95Ms": 10,
@@ -12,7 +12,9 @@
     {
       "mapId": "valle-bruma",
       "dimensions": "1600x1000",
-      "terrainRegions": 18,
+      "terrainRegions": 37,
+      "buildings": 6,
+      "occupiableBuildings": 6,
       "scenario": "120 sustained: ground AA, movement and visibility",
       "seed": 20261001,
       "ticks": 1000,
@@ -24,22 +26,22 @@
         "average": 120
       },
       "simulationMs": {
-        "average": 0.261,
-        "p95": 0.699,
-        "max": 1.205
+        "average": 0.493,
+        "p95": 0.738,
+        "max": 1.036
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.197,
-        "p95": 0.41,
-        "max": 0.883
+        "average": 0.334,
+        "p95": 0.484,
+        "max": 0.818
       },
       "snapshotBytesPerClient": {
-        "average": 40939,
-        "p95": 43081
+        "average": 46785,
+        "p95": 49175
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 204693,
-        "p95": 215405
+        "average": 233925,
+        "p95": 245875
       },
       "combat": {
         "shots": 0,
@@ -55,40 +57,42 @@
     {
       "mapId": "valle-bruma",
       "dimensions": "1600x1000",
-      "terrainRegions": 18,
+      "terrainRegions": 37,
+      "buildings": 6,
+      "occupiableBuildings": 6,
       "scenario": "120 initially: nine-class combined-arms combat",
       "seed": 20261001,
       "ticks": 1000,
       "simulatedSeconds": 100,
       "units": {
         "initial": 120,
-        "minimum": 12,
-        "final": 12,
-        "average": 35.561
+        "minimum": 4,
+        "final": 4,
+        "average": 33.269
       },
       "simulationMs": {
-        "average": 0.165,
-        "p95": 0.867,
-        "max": 3.078
+        "average": 0.224,
+        "p95": 0.917,
+        "max": 10.684
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.163,
-        "p95": 0.652,
-        "max": 1.336
+        "average": 0.207,
+        "p95": 0.791,
+        "max": 1.725
       },
       "snapshotBytesPerClient": {
-        "average": 15509,
-        "p95": 50030
+        "average": 16767,
+        "p95": 49376
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 77543,
-        "p95": 250150
+        "average": 83837,
+        "p95": 246880
       },
       "combat": {
-        "shots": 491,
-        "explosions": 107,
+        "shots": 481,
+        "explosions": 125,
         "peakSuppression": 1,
-        "casualties": 108
+        "casualties": 116
       },
       "withinDesktopBudgets": {
         "simulation": true,
@@ -98,7 +102,9 @@
     {
       "mapId": "cuenca-del-norte",
       "dimensions": "2400x1600",
-      "terrainRegions": 32,
+      "terrainRegions": 56,
+      "buildings": 14,
+      "occupiableBuildings": 14,
       "scenario": "120 sustained: ground AA, movement and visibility",
       "seed": 20261001,
       "ticks": 1000,
@@ -110,22 +116,22 @@
         "average": 120
       },
       "simulationMs": {
-        "average": 0.369,
-        "p95": 0.874,
-        "max": 1.609
+        "average": 0.501,
+        "p95": 0.901,
+        "max": 1.822
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.221,
-        "p95": 0.447,
-        "max": 0.778
+        "average": 0.309,
+        "p95": 0.474,
+        "max": 0.933
       },
       "snapshotBytesPerClient": {
-        "average": 40360,
-        "p95": 43346
+        "average": 47219,
+        "p95": 50548
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 201801,
-        "p95": 216730
+        "average": 236095,
+        "p95": 252740
       },
       "combat": {
         "shots": 0,
@@ -141,40 +147,42 @@
     {
       "mapId": "cuenca-del-norte",
       "dimensions": "2400x1600",
-      "terrainRegions": 32,
+      "terrainRegions": 56,
+      "buildings": 14,
+      "occupiableBuildings": 14,
       "scenario": "120 initially: nine-class combined-arms combat",
       "seed": 20261001,
       "ticks": 1000,
       "simulatedSeconds": 100,
       "units": {
         "initial": 120,
-        "minimum": 7,
-        "final": 7,
-        "average": 35.797
+        "minimum": 5,
+        "final": 5,
+        "average": 37.178
       },
       "simulationMs": {
-        "average": 0.151,
-        "p95": 0.79,
-        "max": 9.117
+        "average": 0.195,
+        "p95": 0.868,
+        "max": 1.526
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.136,
-        "p95": 0.508,
-        "max": 0.726
+        "average": 0.188,
+        "p95": 0.625,
+        "max": 1.037
       },
       "snapshotBytesPerClient": {
-        "average": 15833,
-        "p95": 46829
+        "average": 19250,
+        "p95": 51722
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 79165,
-        "p95": 234145
+        "average": 96250,
+        "p95": 258610
       },
       "combat": {
-        "shots": 443,
-        "explosions": 83,
+        "shots": 482,
+        "explosions": 110,
         "peakSuppression": 1,
-        "casualties": 113
+        "casualties": 115
       },
       "withinDesktopBudgets": {
         "simulation": true,
@@ -184,7 +192,9 @@
     {
       "mapId": "frontera-de-los-siete-pasos",
       "dimensions": "3200x2000",
-      "terrainRegions": 62,
+      "terrainRegions": 112,
+      "buildings": 28,
+      "occupiableBuildings": 28,
       "scenario": "120 sustained: ground AA, movement and visibility",
       "seed": 20261001,
       "ticks": 1000,
@@ -196,22 +206,22 @@
         "average": 120
       },
       "simulationMs": {
-        "average": 0.388,
-        "p95": 0.858,
-        "max": 1.095
+        "average": 0.471,
+        "p95": 0.875,
+        "max": 1.464
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.226,
-        "p95": 0.425,
-        "max": 0.659
+        "average": 0.314,
+        "p95": 0.477,
+        "max": 0.929
       },
       "snapshotBytesPerClient": {
-        "average": 39674,
-        "p95": 43535
+        "average": 48417,
+        "p95": 52747
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 198368,
-        "p95": 217675
+        "average": 242087,
+        "p95": 263735
       },
       "combat": {
         "shots": 0,
@@ -227,7 +237,9 @@
     {
       "mapId": "frontera-de-los-siete-pasos",
       "dimensions": "3200x2000",
-      "terrainRegions": 62,
+      "terrainRegions": 112,
+      "buildings": 28,
+      "occupiableBuildings": 28,
       "scenario": "120 initially: nine-class combined-arms combat",
       "seed": 20261001,
       "ticks": 1000,
@@ -236,31 +248,121 @@
         "initial": 120,
         "minimum": 8,
         "final": 8,
-        "average": 42.974
+        "average": 44.234
       },
       "simulationMs": {
-        "average": 0.187,
-        "p95": 0.861,
-        "max": 1.225
+        "average": 0.232,
+        "p95": 0.891,
+        "max": 1.639
       },
       "snapshotAndSerializationMsPerClient": {
-        "average": 0.16,
-        "p95": 0.48,
-        "max": 0.845
+        "average": 0.212,
+        "p95": 0.616,
+        "max": 1.035
       },
       "snapshotBytesPerClient": {
-        "average": 17582,
-        "p95": 50261
+        "average": 23289,
+        "p95": 57711
       },
       "estimatedBytesPerSecondPerClientAt5Hz": {
-        "average": 87908,
-        "p95": 251305
+        "average": 116446,
+        "p95": 288555
       },
       "combat": {
-        "shots": 482,
-        "explosions": 90,
+        "shots": 520,
+        "explosions": 95,
         "peakSuppression": 1,
         "casualties": 112
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "llanura-del-estuario",
+      "dimensions": "4800x3000",
+      "terrainRegions": 144,
+      "buildings": 96,
+      "occupiableBuildings": 84,
+      "scenario": "120 sustained: ground AA, movement and visibility",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 120,
+        "final": 120,
+        "average": 120
+      },
+      "simulationMs": {
+        "average": 0.52,
+        "p95": 0.893,
+        "max": 1.319
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.383,
+        "p95": 0.574,
+        "max": 1.093
+      },
+      "snapshotBytesPerClient": {
+        "average": 56177,
+        "p95": 62674
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 280886,
+        "p95": 313370
+      },
+      "combat": {
+        "shots": 0,
+        "explosions": 0,
+        "peakSuppression": 0,
+        "casualties": 0
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "llanura-del-estuario",
+      "dimensions": "4800x3000",
+      "terrainRegions": 144,
+      "buildings": 96,
+      "occupiableBuildings": 84,
+      "scenario": "120 initially: nine-class combined-arms combat",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 15,
+        "final": 15,
+        "average": 56.063
+      },
+      "simulationMs": {
+        "average": 0.309,
+        "p95": 0.897,
+        "max": 1.115
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.292,
+        "p95": 0.654,
+        "max": 1.015
+      },
+      "snapshotBytesPerClient": {
+        "average": 35494,
+        "p95": 64179
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 177471,
+        "p95": 320895
+      },
+      "combat": {
+        "shots": 504,
+        "explosions": 72,
+        "peakSuppression": 1,
+        "casualties": 105
       },
       "withinDesktopBudgets": {
         "simulation": true,
@@ -273,11 +375,12 @@
       "mapId": "valle-bruma",
       "commands": 24,
       "unitsPerCommand": 60,
-      "routesWithDetours": 1284,
+      "routesWithDetours": 1332,
+      "firstGroupOrderMs": 5.178,
       "groupOrderMs": {
-        "average": 8.894,
-        "p95": 9.825,
-        "max": 13.243
+        "average": 2.101,
+        "p95": 5.81,
+        "max": 6.389
       },
       "withinDesktopBudget": true
     },
@@ -285,11 +388,12 @@
       "mapId": "cuenca-del-norte",
       "commands": 24,
       "unitsPerCommand": 60,
-      "routesWithDetours": 1284,
+      "routesWithDetours": 1368,
+      "firstGroupOrderMs": 12.559,
       "groupOrderMs": {
-        "average": 19.393,
-        "p95": 20.799,
-        "max": 20.822
+        "average": 4.538,
+        "p95": 14.029,
+        "max": 14.391
       },
       "withinDesktopBudget": true
     },
@@ -298,10 +402,24 @@
       "commands": 24,
       "unitsPerCommand": 60,
       "routesWithDetours": 1440,
+      "firstGroupOrderMs": 21.348,
       "groupOrderMs": {
-        "average": 35.371,
-        "p95": 36.186,
-        "max": 36.883
+        "average": 6.753,
+        "p95": 21.096,
+        "max": 21.348
+      },
+      "withinDesktopBudget": true
+    },
+    {
+      "mapId": "llanura-del-estuario",
+      "commands": 24,
+      "unitsPerCommand": 60,
+      "routesWithDetours": 1440,
+      "firstGroupOrderMs": 50.84,
+      "groupOrderMs": {
+        "average": 14.563,
+        "p95": 50.84,
+        "max": 52.791
       },
       "withinDesktopBudget": true
     }
@@ -311,31 +429,49 @@
       "mapId": "valle-bruma",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 203.7,
-      "ticks": 2037,
-      "executionMs": 40.985,
-      "finalUnits": 22,
-      "controlledSectors": 3
+      "simulatedSeconds": 201.7,
+      "ticks": 2017,
+      "executionMs": 61.331,
+      "finalUnits": 23,
+      "controlledSectors": 3,
+      "garrisonEntries": 2,
+      "peakOccupants": 2
     },
     {
       "mapId": "cuenca-del-norte",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 177,
-      "ticks": 1770,
-      "executionMs": 27.104,
-      "finalUnits": 19,
-      "controlledSectors": 5
+      "simulatedSeconds": 179.7,
+      "ticks": 1797,
+      "executionMs": 48.186,
+      "finalUnits": 21,
+      "controlledSectors": 5,
+      "garrisonEntries": 3,
+      "peakOccupants": 1
     },
     {
       "mapId": "frontera-de-los-siete-pasos",
       "winner": 1,
       "reason": "tickets",
-      "simulatedSeconds": 179.1,
-      "ticks": 1791,
-      "executionMs": 44.996,
+      "simulatedSeconds": 204.7,
+      "ticks": 2047,
+      "executionMs": 60.08,
       "finalUnits": 22,
-      "controlledSectors": 7
+      "controlledSectors": 7,
+      "garrisonEntries": 5,
+      "peakOccupants": 2
+    },
+    {
+      "mapId": "llanura-del-estuario",
+      "winner": 1,
+      "reason": "tickets",
+      "simulatedSeconds": 215,
+      "ticks": 2150,
+      "executionMs": 65.525,
+      "finalUnits": 23,
+      "controlledSectors": 7,
+      "garrisonEntries": 6,
+      "peakOccupants": 3
     }
   ]
 }
