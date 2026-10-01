@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-01T20:57:28.746Z",
+  "browser": "Edge/Chromium",
+  "workload": "Synthetic placement of 120 real units; desktop GPU, 6 seconds per map. Not mobile or a full match.",
+  "results": [
+    {
+      "map": "valle-bruma",
+      "width": 1600,
+      "height": 1000,
+      "units": 120,
+      "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "sampleSeconds": 6,
+      "frames": 1440,
+      "fps": 240,
+      "frameMs": {
+        "mean": 4.167152777777777,
+        "p95": 4.300000000000182
+      },
+      "render": {
+        "frame": 1833,
+        "calls": 369,
+        "triangles": 24632,
+        "points": 0,
+        "lines": 0
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "map": "cuenca-del-norte",
+      "width": 2400,
+      "height": 1600,
+      "units": 120,
+      "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "sampleSeconds": 6,
+      "frames": 1440,
+      "fps": 240,
+      "frameMs": {
+        "mean": 4.167222222222223,
+        "p95": 4.299999999999727
+      },
+      "render": {
+        "frame": 1831,
+        "calls": 373,
+        "triangles": 36616,
+        "points": 0,
+        "lines": 0
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "map": "frontera-de-los-siete-pasos",
+      "width": 3200,
+      "height": 2000,
+      "units": 120,
+      "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "sampleSeconds": 6,
+      "frames": 1440,
+      "fps": 240,
+      "frameMs": {
+        "mean": 4.167152777777778,
+        "p95": 4.299999999999272
+      },
+      "render": {
+        "frame": 1839,
+        "calls": 377,
+        "triangles": 45440,
+        "points": 0,
+        "lines": 0
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}
