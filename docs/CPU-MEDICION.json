@@ -1,0 +1,341 @@
+{
+  "runtime": "v24.19.0",
+  "platform": "win32/x64",
+  "timestamp": "2026-10-01T20:59:01.018Z",
+  "note": "CPU simulation and JSON only; no rendering, transport, mobile Safari or FPS measured. Bandwidth excludes WebSocket/TLS overhead and compression. Budgets are desktop regression targets, not device guarantees.",
+  "desktopBudgets": {
+    "simulationP95Ms": 10,
+    "snapshotAndSerializationP95Ms": 10,
+    "groupOrderP95Ms": 100
+  },
+  "scenarios": [
+    {
+      "mapId": "valle-bruma",
+      "dimensions": "1600x1000",
+      "terrainRegions": 18,
+      "scenario": "120 sustained: ground AA, movement and visibility",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 120,
+        "final": 120,
+        "average": 120
+      },
+      "simulationMs": {
+        "average": 0.261,
+        "p95": 0.699,
+        "max": 1.205
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.197,
+        "p95": 0.41,
+        "max": 0.883
+      },
+      "snapshotBytesPerClient": {
+        "average": 40939,
+        "p95": 43081
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 204693,
+        "p95": 215405
+      },
+      "combat": {
+        "shots": 0,
+        "explosions": 0,
+        "peakSuppression": 0,
+        "casualties": 0
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "valle-bruma",
+      "dimensions": "1600x1000",
+      "terrainRegions": 18,
+      "scenario": "120 initially: nine-class combined-arms combat",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 12,
+        "final": 12,
+        "average": 35.561
+      },
+      "simulationMs": {
+        "average": 0.165,
+        "p95": 0.867,
+        "max": 3.078
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.163,
+        "p95": 0.652,
+        "max": 1.336
+      },
+      "snapshotBytesPerClient": {
+        "average": 15509,
+        "p95": 50030
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 77543,
+        "p95": 250150
+      },
+      "combat": {
+        "shots": 491,
+        "explosions": 107,
+        "peakSuppression": 1,
+        "casualties": 108
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "cuenca-del-norte",
+      "dimensions": "2400x1600",
+      "terrainRegions": 32,
+      "scenario": "120 sustained: ground AA, movement and visibility",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 120,
+        "final": 120,
+        "average": 120
+      },
+      "simulationMs": {
+        "average": 0.369,
+        "p95": 0.874,
+        "max": 1.609
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.221,
+        "p95": 0.447,
+        "max": 0.778
+      },
+      "snapshotBytesPerClient": {
+        "average": 40360,
+        "p95": 43346
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 201801,
+        "p95": 216730
+      },
+      "combat": {
+        "shots": 0,
+        "explosions": 0,
+        "peakSuppression": 0,
+        "casualties": 0
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "cuenca-del-norte",
+      "dimensions": "2400x1600",
+      "terrainRegions": 32,
+      "scenario": "120 initially: nine-class combined-arms combat",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 7,
+        "final": 7,
+        "average": 35.797
+      },
+      "simulationMs": {
+        "average": 0.151,
+        "p95": 0.79,
+        "max": 9.117
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.136,
+        "p95": 0.508,
+        "max": 0.726
+      },
+      "snapshotBytesPerClient": {
+        "average": 15833,
+        "p95": 46829
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 79165,
+        "p95": 234145
+      },
+      "combat": {
+        "shots": 443,
+        "explosions": 83,
+        "peakSuppression": 1,
+        "casualties": 113
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "dimensions": "3200x2000",
+      "terrainRegions": 62,
+      "scenario": "120 sustained: ground AA, movement and visibility",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 120,
+        "final": 120,
+        "average": 120
+      },
+      "simulationMs": {
+        "average": 0.388,
+        "p95": 0.858,
+        "max": 1.095
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.226,
+        "p95": 0.425,
+        "max": 0.659
+      },
+      "snapshotBytesPerClient": {
+        "average": 39674,
+        "p95": 43535
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 198368,
+        "p95": 217675
+      },
+      "combat": {
+        "shots": 0,
+        "explosions": 0,
+        "peakSuppression": 0,
+        "casualties": 0
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "dimensions": "3200x2000",
+      "terrainRegions": 62,
+      "scenario": "120 initially: nine-class combined-arms combat",
+      "seed": 20261001,
+      "ticks": 1000,
+      "simulatedSeconds": 100,
+      "units": {
+        "initial": 120,
+        "minimum": 8,
+        "final": 8,
+        "average": 42.974
+      },
+      "simulationMs": {
+        "average": 0.187,
+        "p95": 0.861,
+        "max": 1.225
+      },
+      "snapshotAndSerializationMsPerClient": {
+        "average": 0.16,
+        "p95": 0.48,
+        "max": 0.845
+      },
+      "snapshotBytesPerClient": {
+        "average": 17582,
+        "p95": 50261
+      },
+      "estimatedBytesPerSecondPerClientAt5Hz": {
+        "average": 87908,
+        "p95": 251305
+      },
+      "combat": {
+        "shots": 482,
+        "explosions": 90,
+        "peakSuppression": 1,
+        "casualties": 112
+      },
+      "withinDesktopBudgets": {
+        "simulation": true,
+        "snapshot": true
+      }
+    }
+  ],
+  "pathOrders": [
+    {
+      "mapId": "valle-bruma",
+      "commands": 24,
+      "unitsPerCommand": 60,
+      "routesWithDetours": 1284,
+      "groupOrderMs": {
+        "average": 8.894,
+        "p95": 9.825,
+        "max": 13.243
+      },
+      "withinDesktopBudget": true
+    },
+    {
+      "mapId": "cuenca-del-norte",
+      "commands": 24,
+      "unitsPerCommand": 60,
+      "routesWithDetours": 1284,
+      "groupOrderMs": {
+        "average": 19.393,
+        "p95": 20.799,
+        "max": 20.822
+      },
+      "withinDesktopBudget": true
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "commands": 24,
+      "unitsPerCommand": 60,
+      "routesWithDetours": 1440,
+      "groupOrderMs": {
+        "average": 35.371,
+        "p95": 36.186,
+        "max": 36.883
+      },
+      "withinDesktopBudget": true
+    }
+  ],
+  "completeMatches": [
+    {
+      "mapId": "valle-bruma",
+      "winner": 1,
+      "reason": "tickets",
+      "simulatedSeconds": 203.7,
+      "ticks": 2037,
+      "executionMs": 40.985,
+      "finalUnits": 22,
+      "controlledSectors": 3
+    },
+    {
+      "mapId": "cuenca-del-norte",
+      "winner": 1,
+      "reason": "tickets",
+      "simulatedSeconds": 177,
+      "ticks": 1770,
+      "executionMs": 27.104,
+      "finalUnits": 19,
+      "controlledSectors": 5
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "winner": 1,
+      "reason": "tickets",
+      "simulatedSeconds": 179.1,
+      "ticks": 1791,
+      "executionMs": 44.996,
+      "finalUnits": 22,
+      "controlledSectors": 7
+    }
+  ]
+}
