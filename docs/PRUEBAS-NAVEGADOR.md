@@ -2,11 +2,11 @@
 
 ## Resultado vigente
 
-La ronda completa del 1 de octubre de 2026, 20:01 UTC, pasó las cinco comprobaciones: duelo, cooperativo, teléfono emulado, tableta emulada y PWA sin red. Edge comunicó NVIDIA GeForce RTX 3060 mediante ANGLE/Direct3D11; no se forzó un renderizador por software. No hubo excepciones JavaScript de página.
+Las rondas completas del 1 de octubre de 2026, primero en local y después contra [la publicación real de Frente Boreal](https://frente-boreal.onrender.com), pasaron las cinco comprobaciones: duelo, cooperativo, teléfono emulado, tableta emulada y PWA sin red. Edge comunicó NVIDIA GeForce RTX 3060 mediante ANGLE/Direct3D11; no se forzó un renderizador por software. No hubo excepciones JavaScript de página.
 
 Se encontró y corrigió un fallo real previo: el servidor respondía 404 a las licencias `.txt` incluidas en la precarga, lo que impedía instalar una caché completa. Tras admitir su tipo de archivo y reiniciar el servidor, la nueva instalación guardó los 18 recursos y el modo individual alcanzó el tick 31 después de recargar con la red bloqueada. Se conserva debajo el resultado fallido para mostrar qué se detectó y la ronda posterior que verificó la corrección.
 
-Las dos sesiones multijugador se ejecutaron en contextos aislados del mismo navegador y ordenador, conectados mediante WebSocket real al servidor local. Esto no acredita dos dispositivos físicos ni redes distintas.
+Las sesiones multijugador se ejecutaron en dos contextos aislados del mismo navegador y ordenador. La última ronda utilizó HTTPS y WebSocket reales hacia Render por Internet: creación, unión, preparación, inicio, movimiento y recarga con recuperación de identidad pasaron en ambos modos. El duelo terminó para ambos tras rendición; en cooperativo, la retirada conservó el juego del compañero y la salida explícita cerró la sala. La PWA pública guardó los 18 archivos y permitió recargar e iniciar individual con la red bloqueada. Esto acredita acceso al servidor publicado desde este ordenador; quedan pendientes dos dispositivos físicos y redes distintas.
 
 Pruebas automatizadas en contextos nuevos y aislados: no se reutilizaron perfiles personales, cookies ni historial. Se controló la interfaz y se leyó `window.__FB__` para observar estado/cámara, sin modificar reglas mediante API de depuración.
 
@@ -217,6 +217,118 @@ Duración: 1.3 s.
 ### Pasó: PWA individual tras recarga sin red
 
 Duración: 3.7 s.
+
+```json
+{
+  "loadedInFreshContext": true,
+  "cachedFiles": 18,
+  "missing": 0,
+  "offlineReload": true,
+  "soloTick": 31,
+  "pageErrors": 0,
+  "limitation": "Desconexión emulada con Playwright; no modo avión físico"
+}
+```
+
+**Límites:** estas pruebas usan el navegador del ordenador. Los viewports y contactos táctiles son emulación; no acreditan Safari, instalación desde Inicio, rendimiento de iPhone/iPad ni redes distintas. Offline significa bloqueo de red de este contexto; las capturas están en `docs/screenshots/`.
+
+## Ejecución 2026-10-01T20:07:23.588Z
+
+Servidor: https://frente-boreal.onrender.com. Navegador: Microsoft Edge/Chromium 154.0.4258.37, headless, sin forzar SwiftShader. Adaptador WebGL comunicado: ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11).
+
+### Pasó: UI multijugador 1 contra 1
+
+Duración: 2.7 s.
+
+```json
+{
+  "contexts": 2,
+  "creationJoinReadyStart": true,
+  "movement": {
+    "unitId": "u1",
+    "distance": 27.6
+  },
+  "coherence": {
+    "commonTick": 7,
+    "visibleUnitsFirst": 4,
+    "visibleUnitsSecond": 4
+  },
+  "reloadRetainedPlayer": true,
+  "ending": "Rendición termina para ambos",
+  "pageErrors": 0
+}
+```
+
+### Pasó: UI multijugador cooperativo
+
+Duración: 2.7 s.
+
+```json
+{
+  "contexts": 2,
+  "creationJoinReadyStart": true,
+  "movement": {
+    "unitId": "u1",
+    "distance": 27.6
+  },
+  "coherence": {
+    "commonTick": 7,
+    "visibleUnitsFirst": 8,
+    "visibleUnitsSecond": 8
+  },
+  "reloadRetainedPlayer": true,
+  "ending": "Retirada permite observar; salida explícita termina sala",
+  "pageErrors": 0
+}
+```
+
+### Pasó: Viewport teléfono 844×390 y gestos táctiles emulados
+
+Duración: 1.8 s.
+
+```json
+{
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "saveRecallGroup": true,
+  "accidentalOrders": 0,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: Viewport tableta 1024×768 y gestos táctiles emulados
+
+Duración: 1.6 s.
+
+```json
+{
+  "viewport": {
+    "width": 1024,
+    "height": 768
+  },
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "saveRecallGroup": true,
+  "accidentalOrders": 0,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: PWA individual tras recarga sin red
+
+Duración: 5.4 s.
 
 ```json
 {
