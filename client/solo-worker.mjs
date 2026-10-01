@@ -1,11 +1,16 @@
-import { createGame, applyCommand, stepGame, snapshotFor } from '../shared/sim.mjs';
+import { createGame, snapshotFor } from '../shared/sim.mjs';
 import { validateConfig } from '../shared/config.mjs';
+import { createMatchControl, timeControlSnapshot, pendingOrderCount, setMatchSpeed, submitMatchCommand, advanceMatch } from '../shared/match-control.mjs';
 
 let game = null;
-let paused = false;
+let suspended = false;
 let timer = null;
+let clock = null;
+let lastStepAt = 0;
 
-function publishState() { postMessage({ type: 'state', state: snapshotFor(game, 'local') }); }
+function publishState() {
+  postMessage({ type: 'state', state: { ...snapshotFor(game, 'local'), timeControl: timeControlSnapshot(clock), pendingOrders: pendingOrderCount(clock, 'local') } });
+}
 
 self.onmessage = ({ data }) => {
   try {
@@ -18,15 +23,30 @@ self.onmessage = ({ data }) => {
         players: [{ id: 'local', name: data.name, team: 0, deck: data.deck }],
         seed: Date.now() >>> 0,
       });
-      paused = false;
+      suspended = false;
+      clock = createMatchControl(game);
+      lastStepAt = performance.now();
       timer = setInterval(() => {
-        if (game && !paused) { stepGame(game, .1); publishState(); }
+        if (!game) return;
+        const now = performance.now();
+        const advanced = advanceMatch(game, clock, (now - lastStepAt) / 1000, { suspended });
+        lastStepAt = now;
+        for (const result of advanced.results) postMessage({ type: 'commandResult', ...result });
+        publishState();
       }, 100);
       publishState();
     } else if (data.type === 'command' && game) {
-      postMessage({ type: 'ack', ...applyCommand(game, 'local', data.command) });
+      postMessage({ type: 'ack', ...submitMatchCommand(game, clock, 'local', data.command, data.seq ?? null, { suspended }) });
+      publishState();
+    } else if (data.type === 'time' && game) {
+      const result = setMatchSpeed(game, clock, 'local', data.speed);
+      if (!result.ok) postMessage({ type: 'error', message: result.error });
+      else { lastStepAt = performance.now(); publishState(); }
     } else if (data.type === 'pause') {
-      paused = data.paused === true;
+      // Menu/background suspension is independent of the shared manual clock.
+      suspended = data.paused === true;
+      lastStepAt = performance.now();
+      if (clock) clock.accumulator = 0;
     } else if (data.type === 'stop') {
       clearInterval(timer);
       game = null;
