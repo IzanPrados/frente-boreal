@@ -73,6 +73,7 @@ function benchmark(map, stable) {
   }
   return {
     mapId: map.id, dimensions: `${map.width}x${map.height}`, terrainRegions: map.terrain.length,
+    buildings: map.buildings?.length || 0, occupiableBuildings: map.buildings?.filter(building => building.capacity > 0).length || 0,
     scenario: stable ? '120 sustained: ground AA, movement and visibility' : '120 initially: nine-class combined-arms combat',
     seed: SEED, ticks: 1000, simulatedSeconds: 100,
     units: { initial: initialUnits, minimum: Math.min(...populations), final: game.units.length, average: round(mean(populations)) },
@@ -101,7 +102,7 @@ function pathOrderBenchmark(map) {
     routesWithDetours += units.filter(unit => unit.path.length > 1).length;
   }
   assert.ok(routesWithDetours > 0, 'Path benchmark must exercise obstacle avoidance');
-  return { mapId: map.id, commands: samples.length, unitsPerCommand: 60, routesWithDetours, groupOrderMs: summary(samples), withinDesktopBudget: p95(samples) <= BUDGETS.groupOrderP95Ms };
+  return { mapId: map.id, commands: samples.length, unitsPerCommand: 60, routesWithDetours, firstGroupOrderMs: round(samples[0]), groupOrderMs: summary(samples), withinDesktopBudget: p95(samples) <= BUDGETS.groupOrderP95Ms };
 }
 
 function completeMatch(map) {
@@ -112,10 +113,16 @@ function completeMatch(map) {
     assert.equal(applyCommand(game, 'player1', { type: 'move', unitIds: [troop.id], x: sector.x, y: sector.y }).ok, true);
   }
   const start = performance.now();
-  while (game.status === 'playing') stepGame(game, 0.1);
+  const entries = new Set();
+  let peakOccupants = 0;
+  while (game.status === 'playing') {
+    stepGame(game, 0.1);
+    peakOccupants = Math.max(peakOccupants, game.units.filter(unit => unit.garrisonedIn).length);
+    for (const event of game.events) if (event.type === 'garrison') entries.add(event.id);
+  }
   assert.ok(['tickets', 'time'].includes(game.reason));
   assert.ok(game.sectors.some(sector => sector.owner !== null));
-  return { mapId: map.id, winner: game.winner, reason: game.reason, simulatedSeconds: round(game.time), ticks: game.tick, executionMs: round(performance.now() - start), finalUnits: game.units.length, controlledSectors: game.sectors.filter(sector => sector.owner !== null).length };
+  return { mapId: map.id, winner: game.winner, reason: game.reason, simulatedSeconds: round(game.time), ticks: game.tick, executionMs: round(performance.now() - start), finalUnits: game.units.length, controlledSectors: game.sectors.filter(sector => sector.owner !== null).length, garrisonEntries: entries.size, peakOccupants };
 }
 
 // Warm up production code before measured runs. Per-map indexes are built by
