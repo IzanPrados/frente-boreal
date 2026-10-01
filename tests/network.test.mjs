@@ -197,6 +197,176 @@ test('grupo en movimiento se detiene, dispara y reanuda en estados idénticos de
   assert.ok(group.every(unit => stopped.units.find(u => u.id === unit.id).target === null));
 });
 
+test('ambos compañeros controlan el tiempo por TCP, comparten orden de revisión y preparan órdenes sin efectos durante pausa', { timeout: 10000 }, async t => {
+  const { a, b } = await fixture(t, 'coop', { tickMs: 25, snapshotMs: 50 }, { startingResources: 1000, incomeMultiplier: 2 });
+  const [initialA] = await start(a, b);
+  assert.equal(initialA.timeControl.speed, 1);
+  b.send({ type: 'time', speed: 0 });
+  const paused = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 1)).state;
+  const pausedB = (await b.wait(message => message.type === 'state' && message.state.timeControl?.revision === 1)).state;
+  assert.deepEqual(paused.timeControl, pausedB.timeControl);
+  assert.equal(paused.timeControl.changedBy, b.identity.playerId);
+  assert.equal(paused.timeControl.changedByName, 'Bruma');
+  assert.equal(paused.timeControl.paused, true);
+  assert.equal(paused.paused, false, 'La pausa manual es independiente de la desconexión.');
+  a.discard('state');
+  const still = (await a.wait(message => message.type === 'state')).state;
+  assert.equal(still.tick, paused.tick);
+  assert.deepEqual(still.units, paused.units);
+  assert.deepEqual(still.players, paused.players);
+
+  a.send({ type: 'time', speed: .5 });
+  await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 2);
+  // Requests are deliberately sent without waiting for one another. We do not
+  // assume which socket arrives first: both clients must observe the same order.
+  a.send({ type: 'time', speed: 2 });
+  b.send({ type: 'time', speed: 0 });
+  const sequenceA = [], sequenceB = [];
+  for (const revision of [3, 4]) {
+    sequenceA.push((await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === revision)).state.timeControl);
+    sequenceB.push((await b.wait(message => message.type === 'state' && message.state.timeControl?.revision === revision)).state.timeControl);
+  }
+  assert.deepEqual(sequenceA, sequenceB);
+  assert.deepEqual(new Set(sequenceA.map(control => control.changedBy)), new Set([a.identity.playerId, b.identity.playerId]));
+  a.send({ type: 'time', speed: 0 });
+  const frozen = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 5)).state;
+  await b.wait(message => message.type === 'state' && message.state.timeControl?.revision === 5);
+  const aCount = frozen.units.filter(unit => unit.ownerId === a.identity.playerId).length;
+  const bCount = frozen.units.filter(unit => unit.ownerId === b.identity.playerId).length;
+  const own = frozen.units.find(unit => unit.ownerId === a.identity.playerId);
+  a.send({ type: 'command', seq: 1, command: { type: 'deploy', unitType: 'infantry', x: 160, y: 500 } });
+  assert.equal((await a.wait(message => message.type === 'ack' && message.seq === 1)).queued, true);
+  a.send({ type: 'command', seq: 1, command: { type: 'deploy', unitType: 'infantry', x: 160, y: 500 } });
+  assert.equal((await a.wait(message => message.type === 'ack' && message.seq === 1)).queued, true, 'Un reintento conserva una sola orden preparada.');
+  a.send({ type: 'command', seq: 2, command: { type: 'deploy', unitType: 'infantry', x: 800, y: 500 } });
+  assert.equal((await a.wait(message => message.type === 'ack' && message.seq === 2)).queued, true);
+  b.send({ type: 'command', seq: 1, command: { type: 'move', unitIds: [own.id], x: 400, y: 500 } });
+  assert.equal((await b.wait(message => message.type === 'ack' && message.seq === 1)).ok, false);
+  b.send({ type: 'command', seq: 2, command: { type: 'deploy', unitType: 'infantry', x: 160, y: 500 } });
+  assert.equal((await b.wait(message => message.type === 'ack' && message.seq === 2)).queued, true);
+  const pendingA = (await a.wait(message => message.type === 'state' && message.state.pendingOrders === 2)).state;
+  const pendingB = (await b.wait(message => message.type === 'state' && message.state.pendingOrders === 1)).state;
+  assert.equal(pendingA.tick, frozen.tick);
+  assert.equal(pendingB.tick, frozen.tick);
+  assert.deepEqual(pendingA.units, frozen.units);
+  assert.deepEqual(pendingA.players, frozen.players);
+  b.send({ type: 'time', speed: 2 });
+  const resultA = await a.wait(message => message.type === 'commandResult' && message.seq === 1);
+  const failedA = await a.wait(message => message.type === 'commandResult' && message.seq === 2);
+  const resultB = await b.wait(message => message.type === 'commandResult' && message.seq === 2);
+  assert.equal(resultA.ok, true); assert.equal(resultB.ok, true);
+  assert.equal(failedA.ok, false);
+  assert.match(failedA.error, /base/);
+  const resumed = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 6 && message.state.pendingOrders === 0 && message.state.tick > frozen.tick)).state;
+  assert.equal(resumed.timeControl.speed, 2);
+  assert.equal(resumed.timeControl.changedBy, b.identity.playerId);
+  assert.equal(resumed.units.filter(unit => unit.ownerId === a.identity.playerId).length, aCount + 1);
+  assert.equal(resumed.units.filter(unit => unit.ownerId === b.identity.playerId).length, bCount + 1);
+  for (const id of [a.identity.playerId, b.identity.playerId]) assert.ok(Math.abs(resumed.players.find(player => player.id === id).credits - (1000 - 90 + resumed.time * 6 * 2)) < .02);
+  a.send({ type: 'command', seq: 1, command: { type: 'deploy', unitType: 'infantry', x: 160, y: 500 } });
+  const repeated = await a.wait(message => message.type === 'ack' && message.seq === 1);
+  assert.equal(repeated.ok, true); assert.equal(repeated.queued, false);
+});
+
+test('reconectar conserva pausa manual, última velocidad y órdenes preparadas; PvP rechaza cambios de reloj', { timeout: 10000 }, async t => {
+  const { app, a, b } = await fixture(t, 'coop', { tickMs: 25, snapshotMs: 50 });
+  await start(a, b);
+  a.send({ type: 'time', speed: 2 });
+  await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 1);
+  b.send({ type: 'time', speed: 0 });
+  const paused = (await b.wait(message => message.type === 'state' && message.state.timeControl?.revision === 2)).state;
+  a.send({ type: 'command', seq: 1, command: { type: 'deploy', unitType: 'infantry' } });
+  assert.equal((await a.wait(message => message.type === 'ack')).queued, true);
+  await a.disconnect();
+  const disconnected = (await b.wait(message => message.type === 'state' && message.state.paused)).state;
+  assert.deepEqual(disconnected.timeControl, paused.timeControl);
+  const recovered = await client(app.address.url);
+  recovered.send({ type: 'resume', code: a.identity.code, token: a.identity.token });
+  assert.equal((await recovered.wait(message => message.type === 'welcome')).playerId, a.identity.playerId);
+  const recoveredState = (await recovered.wait(message => message.type === 'state' && !message.state.paused)).state;
+  assert.deepEqual(recoveredState.timeControl, paused.timeControl);
+  assert.equal(recoveredState.pendingOrders, 1);
+  assert.equal(recoveredState.tick, paused.tick);
+  b.send({ type: 'time', speed: .5 });
+  const resumed = (await recovered.wait(message => message.type === 'state' && message.state.timeControl?.revision === 3 && message.state.tick > paused.tick)).state;
+  assert.equal(resumed.timeControl.speed, .5);
+  assert.ok(resumed.tick - paused.tick <= 2, 'Reconectar no recupera de golpe el tiempo real suspendido.');
+  assert.equal((await recovered.wait(message => message.type === 'commandResult')).ok, true);
+
+  const { a: versusA, b: versusB } = await fixture(t, 'versus');
+  const [initial] = await start(versusA, versusB);
+  assert.equal(initial.timeControl, null);
+  versusB.send({ type: 'time', speed: 0 });
+  assert.match((await versusB.wait(message => message.type === 'error')).message, /cooperativo/);
+  const next = (await versusA.wait(message => message.type === 'state' && message.state.tick > initial.tick)).state;
+  assert.equal(next.timeControl, null);
+});
+
+test('ocupación y salida por TCP esperan la reanudación y sincronizan plazas, tropas y destinos', { timeout: 10000 }, async t => {
+  const { app, a, b } = await fixture(t, 'coop', { tickMs: 25, snapshotMs: 50 }, { mapId: 'llanura-del-estuario' });
+  await start(a, b);
+  const game = [...app.wss.clients].find(socket => socket.context?.player.id === a.identity.playerId).context.room.game;
+  game.aiAt = Infinity;
+  const building = game.map.buildings.find(value => value.capacity === 2 && value.x < game.map.width / 2);
+  assert(building, 'El mapa incluye una posición real con dos plazas.');
+  const troops = [a, b].map(connection => game.units.find(unit => unit.ownerId === connection.identity.playerId && unit.type === 'infantry'));
+  troops.forEach((troop, index) => {
+    const door = building.doors[index];
+    const center = { x: building.x + building.w / 2, y: building.y + building.h / 2 };
+    const distance = Math.hypot(door.x - center.x, door.y - center.y);
+    Object.assign(troop, { x: door.x + (door.x - center.x) / distance * 30, y: door.y + (door.y - center.y) / distance * 30, hp: 83, ammo: 9, path: [], target: null, order: 'stop' });
+  });
+  game.units = troops;
+  b.send({ type: 'time', speed: 0 });
+  const paused = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 1)).state;
+  await b.wait(message => message.type === 'state' && message.state.timeControl?.revision === 1);
+  a.send({ type: 'command', seq: 1, command: { type: 'garrison', unitIds: [troops[0].id], buildingId: building.id } });
+  b.send({ type: 'command', seq: 1, command: { type: 'garrison', unitIds: [troops[1].id], buildingId: building.id } });
+  assert.equal((await a.wait(message => message.type === 'ack')).queued, true);
+  assert.equal((await b.wait(message => message.type === 'ack')).queued, true);
+  const queued = (await a.wait(message => message.type === 'state' && message.state.pendingOrders === 1)).state;
+  assert.equal(queued.tick, paused.tick);
+  assert.ok(troops.every(troop => !troop.pendingBuildingId && !troop.garrisonedIn), 'Preparar la orden no reserva plazas ni teletransporta tropas durante la pausa.');
+  a.send({ type: 'time', speed: 1 });
+  assert.equal((await a.wait(message => message.type === 'commandResult' && message.seq === 1)).ok, true);
+  assert.equal((await b.wait(message => message.type === 'commandResult' && message.seq === 1)).ok, true);
+  const reserved = (await a.wait(message => message.type === 'state' && message.state.buildings.some(value => value.id === building.id && value.reserved === 2))).state;
+  const reservedB = (await b.wait(message => message.type === 'state' && message.state.tick === reserved.tick && message.state.timeControl?.revision === 2)).state;
+  assert.deepEqual(reserved.buildings, reservedB.buildings);
+  assert.deepEqual(reserved.units, reservedB.units);
+  assert.equal(reserved.buildings.find(value => value.id === building.id).occupied, 0);
+  assert.ok(reserved.units.every(troop => troop.pendingBuildingId === building.id && !troop.garrisonedIn), 'La entrada exige recorrer el camino a la puerta.');
+  const inside = (await a.wait(message => message.type === 'state' && troops.every(troop => message.state.units.some(unit => unit.id === troop.id && unit.garrisonedIn === building.id)))).state;
+  const insideB = (await b.wait(message => message.type === 'state' && message.state.tick === inside.tick)).state;
+  assert.deepEqual(inside.units, insideB.units);
+  assert.deepEqual(inside.buildings, insideB.buildings);
+  const occupied = inside.buildings.find(value => value.id === building.id);
+  assert.equal(occupied.occupied, 2); assert.equal(occupied.reserved, 0);
+  assert.deepEqual(new Set(occupied.occupantIds), new Set(troops.map(troop => troop.id)));
+  assert.ok(inside.units.every(troop => troop.hp === 83 && troop.ammo === 9), 'Entrar conserva integridad y munición.');
+
+  a.send({ type: 'time', speed: 0 });
+  const stopped = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 3)).state;
+  a.send({ type: 'command', seq: 2, command: { type: 'exit', unitIds: [troops[0].id] } });
+  b.send({ type: 'command', seq: 2, command: { type: 'move', unitIds: [troops[1].id], ...game.map.spawns[0] } });
+  assert.equal((await a.wait(message => message.type === 'ack' && message.seq === 2)).queued, true);
+  assert.equal((await b.wait(message => message.type === 'ack' && message.seq === 2)).queued, true);
+  const waitingExit = (await a.wait(message => message.type === 'state' && message.state.pendingOrders === 1 && message.state.timeControl?.revision === 3)).state;
+  assert.equal(waitingExit.tick, stopped.tick);
+  assert.ok(waitingExit.units.every(troop => troop.garrisonedIn === building.id));
+  b.send({ type: 'time', speed: .5 });
+  assert.equal((await a.wait(message => message.type === 'commandResult' && message.seq === 2)).ok, true);
+  assert.equal((await b.wait(message => message.type === 'commandResult' && message.seq === 2)).ok, true);
+  const outside = (await a.wait(message => message.type === 'state' && message.state.timeControl?.revision === 4 && message.state.units.every(troop => !troop.garrisonedIn))).state;
+  const outsideB = (await b.wait(message => message.type === 'state' && message.state.tick === outside.tick && message.state.timeControl?.revision === 4)).state;
+  assert.deepEqual(outside.units, outsideB.units);
+  assert.deepEqual(outside.buildings, outsideB.buildings);
+  assert.ok(outside.units.every(troop => troop.hp === 83 && troop.ammo === 9));
+  assert.equal(outside.units.find(troop => troop.id === troops[0].id).order, 'stop');
+  assert.deepEqual(outside.units.find(troop => troop.id === troops[1].id).target, game.map.spawns[0], 'Una orden de movimiento sale del edificio y conserva su destino.');
+  assert.ok(outside.units.every(troop => !(troop.x > building.x && troop.x < building.x + building.w && troop.y > building.y && troop.y < building.y + building.h)));
+});
+
 test('equipo coop compartido, órdenes ajenas rechazadas y gasto idempotente', { timeout: 10000 }, async t => {
   const { a, b } = await fixture(t, 'coop');
   b.send({ type: 'team', team: 1 });
