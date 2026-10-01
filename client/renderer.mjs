@@ -1,11 +1,14 @@
 import * as THREE from "/vendor/three.module.js";
-import { MAP, UNIT_TYPES } from "../shared/data.mjs";
+import { UNIT_TYPES } from "../shared/data.mjs";
+
+import { getMap } from "../shared/maps.mjs";
+import { createFogGrid, visibilityOutline } from "./fog.mjs";
 
 const BLUE = 0x7dcce7,
   RED = 0xf29b86;
 export class Battlefield {
   constructor(element, labels, quality = "medium") {
-    this.map = MAP;
+    this.map = getMap();
     this.element = element;
     this.labels = labels;
     this.labelCtx = labels.getContext("2d");
@@ -71,6 +74,7 @@ export class Battlefield {
       this.scene.remove(object);
     }
     this.fogTexture?.dispose();
+    this.groundTexture?.dispose();
     this.units.clear();
     this.effects = [];
     this.smokeMeshes.clear();
@@ -138,73 +142,160 @@ export class Battlefield {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 4294967296;
     };
-    for (
-      let i = 0;
-      i < Math.round((this.map.width * this.map.height) / 10500);
-      i++
-    ) {
-      const x = random() * this.map.width,
-        y = random() * this.map.height;
-      this.plane(
-        35 + random() * 90,
-        20 + random() * 70,
-        [0x6e7b5b, 0x5e7256, 0x727e60, 0x697655][i % 4],
-        x,
-        y,
-        0.05,
-      );
-    }
+    // Field texture follows a regular agricultural layout. Trees and buildings
+    // below come from the very same map definitions as the simulation.
+    const groundCanvas = document.createElement("canvas");
+    groundCanvas.width = 512;
+    groundCanvas.height = 512;
+    const groundCtx = groundCanvas.getContext("2d");
+    groundCtx.fillStyle = "#738363";
+    groundCtx.fillRect(0, 0, 512, 512);
+    const fieldColors = [
+      "#788867",
+      "#7d8c68",
+      "#6d805f",
+      "#83916b",
+      "#697e5d",
+      "#88936d",
+    ];
+    for (let gy = 0; gy < 4; gy++)
+      for (let gx = 0; gx < 4; gx++) {
+        const color = fieldColors[(gx * 3 + gy * 5) % fieldColors.length];
+        groundCtx.fillStyle = color;
+        groundCtx.fillRect(gx * 128 + 2, gy * 128 + 2, 124, 124);
+        groundCtx.strokeStyle = "#52664d22";
+        groundCtx.lineWidth = 1;
+        for (let row = 8; row < 124; row += 8) {
+          groundCtx.beginPath();
+          if ((gx + gy) % 2) {
+            groundCtx.moveTo(gx * 128 + row, gy * 128 + 4);
+            groundCtx.lineTo(gx * 128 + row, gy * 128 + 124);
+          } else {
+            groundCtx.moveTo(gx * 128 + 4, gy * 128 + row);
+            groundCtx.lineTo(gx * 128 + 124, gy * 128 + row);
+          }
+          groundCtx.stroke();
+        }
+      }
+    this.groundTexture = new THREE.CanvasTexture(groundCanvas);
+    this.groundTexture.wrapS = this.groundTexture.wrapT = THREE.RepeatWrapping;
+    this.groundTexture.repeat.set(
+      this.map.width / 1100,
+      this.map.height / 1100,
+    );
+    this.groundTexture.colorSpace = THREE.SRGBColorSpace;
+    const field = new THREE.Mesh(
+      new THREE.PlaneGeometry(this.map.width, this.map.height),
+      new THREE.MeshStandardMaterial({ map: this.groundTexture, roughness: 1 }),
+    );
+    field.rotation.x = -Math.PI / 2;
+    field.position.set(this.map.width / 2, 0.03, this.map.height / 2);
+    this.scene.add(field);
     const trees = [];
     const blocked = (x, y) =>
       this.map.terrain.some(
         (t) =>
           (t.type === "road" || t.type === "water") &&
-          x >= t.x - 12 &&
-          x <= t.x + t.w + 12 &&
-          y >= t.y - 12 &&
-          y <= t.y + t.h + 12,
+          x >= t.x - 6 &&
+          x <= t.x + t.w + 6 &&
+          y >= t.y - 6 &&
+          y <= t.y + t.h + 6,
+      ) ||
+      (this.map.buildings ?? []).some(
+        (b) =>
+          x >= b.x - 9 &&
+          x <= b.x + b.w + 9 &&
+          y >= b.y - 9 &&
+          y <= b.y + b.h + 9,
       );
     for (const t of this.map.terrain) {
       const x = t.x + t.w / 2,
         z = t.y + t.h / 2;
       if (t.type === "road") {
-        this.plane(t.w, t.h, 0x8c8e7b, x, z, 0.26);
-        continue;
-      }
-      if (t.type === "water") {
-        this.plane(t.w, t.h, 0x416f77, x, z, 0.16);
-        continue;
-      }
-      if (t.type === "forest") {
-        this.plane(t.w, t.h, 0x3f5a48, x, z, 0.18);
-        const count = Math.min(85, Math.floor((t.w * t.h) / 1300));
-        for (let j = 0; j < count; j++) {
-          const tx = t.x + random() * t.w,
-            ty = t.y + random() * t.h;
-          if (!blocked(tx, ty)) trees.push([tx, ty, 10 + random() * 17]);
-        }
-        continue;
-      }
-      if (t.type === "town") {
-        this.plane(t.w, t.h, 0x8c8a72, x, z, 0.15);
-        for (let a = 18; a < t.w - 10; a += 45)
-          for (let b = 18; b < t.h - 10; b += 52) {
-            if (blocked(t.x + a, t.y + b)) continue;
-            let h = 10 + random() * 14;
-            this.box(22, h, 24, 0xa0a08a, t.x + a, 0, t.y + b);
-            const roof = new THREE.Mesh(
-              new THREE.ConeGeometry(20, 8, 4),
-              this.material(0x626e6a),
-            );
-            roof.rotation.y = Math.PI / 4;
-            roof.position.set(t.x + a, h + 4, t.y + b);
-            this.scene.add(roof);
+        this.plane(t.w, t.h, 0x8f9586, x, z, 0.26);
+        // Road center lines make the connected network readable at tactical zoom.
+        if (t.w > t.h * 2)
+          for (let a = t.x + 18; a < t.x + t.w - 10; a += 48)
+            this.plane(18, 1.6, 0xc6c4a5, a, z, 0.28);
+        else if (t.h > t.w * 2)
+          for (let a = t.y + 18; a < t.y + t.h - 10; a += 48)
+            this.plane(1.6, 18, 0xc6c4a5, x, a, 0.28);
+      } else if (t.type === "water") this.plane(t.w, t.h, 0x427781, x, z, 0.16);
+      else if (t.type === "town") this.plane(t.w, t.h, 0x999583, x, z, 0.15);
+      else if (t.type === "forest") {
+        const density = t.density ?? 0.85;
+        this.plane(
+          t.w,
+          t.h,
+          density < 0.25 ? 0x708064 : density < 0.6 ? 0x5c7555 : 0x455f48,
+          x,
+          z,
+          0.18,
+        );
+        const spacing = density < 0.25 ? 44 : density < 0.6 ? 35 : 25;
+        for (let ty = t.y + 9; ty < t.y + t.h - 6; ty += spacing)
+          for (let tx = t.x + 9; tx < t.x + t.w - 6; tx += spacing) {
+            const px = Math.min(t.x + t.w - 5, tx + random() * 8),
+              py = Math.min(t.y + t.h - 5, ty + random() * 8);
+            if (!blocked(px, py))
+              trees.push([px, py, 17 + random() * 13, density < 0.6]);
           }
+      }
+    }
+    this.buildingById = new Map(
+      (this.map.buildings ?? []).map((b) => [b.id, b]),
+    );
+    for (const b of this.map.buildings ?? []) {
+      const x = b.x + b.w / 2,
+        z = b.y + b.h / 2,
+        height = (b.height ?? 18) - 6;
+      this.box(b.w, height, b.h, b.occupiable ? 0xbab49d : 0x929d97, x, 0, z);
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(1, 1, 4),
+        this.material(b.occupiable ? 0x816651 : 0x59696a),
+      );
+      roof.rotation.y = Math.PI / 4;
+      roof.scale.set(b.w / Math.SQRT2, 6, b.h / Math.SQRT2);
+      roof.position.set(x, height + 3, z);
+      this.scene.add(roof);
+      // Doors and windows sit on the solid footprint; access markers are contextual.
+      for (const door of b.doors ?? []) {
+        const dx = Math.abs(door.x - x),
+          dy = Math.abs(door.y - z);
+        if (dx > dy)
+          this.box(
+            0.4,
+            7,
+            4,
+            0x3e5149,
+            door.x < x ? b.x - 0.25 : b.x + b.w + 0.25,
+            0,
+            z,
+          );
+        else
+          this.box(
+            4,
+            7,
+            0.4,
+            0x3e5149,
+            x,
+            0,
+            door.y < z ? b.y - 0.25 : b.y + b.h + 0.25,
+          );
+      }
+      for (let a = b.x + 6; a < b.x + b.w - 3; a += 12) {
+        this.box(3, 3, 0.3, 0x435963, a, height * 0.55, b.y - 0.2);
+        this.box(3, 3, 0.3, 0x435963, a, height * 0.55, b.y + b.h + 0.2);
       }
     }
     const foliage = new THREE.InstancedMesh(
       new THREE.ConeGeometry(11, 28, 6),
       this.material(0x294f41),
+      trees.length,
+    );
+    const crowns = new THREE.InstancedMesh(
+      new THREE.IcosahedronGeometry(12, 0),
+      this.material(0x50794e),
       trees.length,
     );
     const trunks = new THREE.InstancedMesh(
@@ -213,17 +304,25 @@ export class Battlefield {
       trees.length,
     );
     const matrix = new THREE.Matrix4();
-    trees.forEach(([x, z, h], i) => {
+    trees.forEach(([x, z, h, broad], i) => {
       matrix.compose(
         new THREE.Vector3(x, h / 2 + 4, z),
         new THREE.Quaternion(),
         new THREE.Vector3(h / 22, h / 22, h / 22),
       );
-      foliage.setMatrixAt(i, matrix);
+      if (broad) {
+        crowns.setMatrixAt(i, matrix);
+        matrix.makeScale(0, 0, 0);
+        foliage.setMatrixAt(i, matrix);
+      } else {
+        foliage.setMatrixAt(i, matrix);
+        matrix.makeScale(0, 0, 0);
+        crowns.setMatrixAt(i, matrix);
+      }
       matrix.makeTranslation(x, 5, z);
       trunks.setMatrixAt(i, matrix);
     });
-    this.scene.add(foliage, trunks);
+    this.scene.add(foliage, crowns, trunks);
     this.sectorMeshes = new Map();
     for (const s of this.map.sectors) {
       const ring = new THREE.Mesh(
@@ -255,8 +354,7 @@ export class Battlefield {
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(s.x, 0.8, s.y);
       this.scene.add(ring);
-      for (let j = -1; j <= 1; j++)
-        this.box(24, 9, 18, i ? 0x8b7362 : 0x6b8380, s.x + j * 32, 0, s.y - 70);
+      this.plane(88, 6, i ? 0x8b7362 : 0x6b8380, s.x, s.y - 85, 0.32);
     });
     this.fogCanvas = document.createElement("canvas");
     this.fogCanvas.width = Math.min(320, Math.ceil(this.map.width / 8));
@@ -264,6 +362,7 @@ export class Battlefield {
       (this.fogCanvas.width * this.map.height) / this.map.width,
     );
     this.fogCtx = this.fogCanvas.getContext("2d");
+    this.fogGrid = createFogGrid(this.map);
     this.explored = new Uint8Array(
       this.fogCanvas.width * this.fogCanvas.height,
     );
@@ -445,6 +544,7 @@ export class Battlefield {
         this.units.set(u.id, m);
       }
       m.userData.unit = u;
+      m.visible = !u.garrisonedIn;
       m.getObjectByName("selection").visible = this.selected.has(u.id);
     }
     for (const [id, m] of this.units)
@@ -512,6 +612,58 @@ export class Battlefield {
         mesh.material.dispose();
         this.smokeMeshes.delete(id);
       }
+  }
+  setBuildingContext(id, eligible) {
+    this.selectedBuildingId = id;
+    this.highlightBuildings = eligible;
+  }
+  buildingScreen(building) {
+    return this.screenAt(
+      building.x + building.w / 2,
+      building.y + building.h / 2,
+      (building.height ?? 18) + 9,
+    );
+  }
+  unitScreen(unit, baseHeight = 12) {
+    const building = this.buildingById?.get(unit.garrisonedIn);
+    return building
+      ? this.buildingScreen(building)
+      : this.screenAt(
+          unit.x,
+          unit.y,
+          UNIT_TYPES[unit.type]?.domain === "air" ? 62 : baseHeight,
+        );
+  }
+  pickBuilding(x, y) {
+    let chosen = null,
+      nearest = Infinity;
+    for (const b of this.map.buildings ?? []) {
+      const center = this.buildingScreen(b),
+        corners = [
+          [b.x, b.y],
+          [b.x + b.w, b.y],
+          [b.x + b.w, b.y + b.h],
+          [b.x, b.y + b.h],
+        ].flatMap(([px, py]) => [
+          this.screenAt(px, py, 0),
+          this.screenAt(px, py, (b.height ?? 18) + 6),
+        ]);
+      const xs = corners.map((p) => p.x),
+        ys = corners.map((p) => p.y);
+      if (
+        x < Math.min(...xs) - 5 ||
+        x > Math.max(...xs) + 5 ||
+        y < Math.min(...ys) - 5 ||
+        y > Math.max(...ys) + 5
+      )
+        continue;
+      const distance = Math.hypot(x - center.x, y - center.y);
+      if (distance < nearest) {
+        chosen = b;
+        nearest = distance;
+      }
+    }
+    return chosen;
   }
   setSelected(ids) {
     this.selected = new Set(ids);
@@ -592,11 +744,7 @@ export class Battlefield {
       min = 30;
     for (const u of this.state?.units ?? []) {
       if (u.loadedIn || (ownOnly && u.ownerId !== this.playerId)) continue;
-      const p = this.screenAt(
-          u.x,
-          u.y,
-          UNIT_TYPES[u.type]?.domain === "air" ? 62 : 12,
-        ),
+      const p = this.unitScreen(u),
         d = Math.hypot(p.x - x, p.y - y);
       if (d < min) {
         min = d;
@@ -612,34 +760,50 @@ export class Battlefield {
       h = this.fogCanvas.height,
       sx = this.map.width / w,
       sy = this.map.height / h;
-    const visible = new Uint8Array(w * h),
-      image = ctx.createImageData(w, h);
-    // Rasterize each vision circle locally instead of testing every cell against every unit.
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#ffffff";
+    // Coarse silhouettes match solid walls and gradual vegetation attenuation.
+    // This display mask never decides which enemy units are sent to the client.
     for (const u of this.state.units) {
       if (u.team !== this.myTeam || u.loadedIn) continue;
-      const radius = UNIT_TYPES[u.type]?.vision ?? 180;
-      for (
-        let y = Math.max(0, Math.floor((u.y - radius) / sy));
-        y <= Math.min(h - 1, Math.ceil((u.y + radius) / sy));
-        y++
-      )
-        for (
-          let x = Math.max(0, Math.floor((u.x - radius) / sx));
-          x <= Math.min(w - 1, Math.ceil((u.x + radius) / sx));
-          x++
-        )
-          if (
-            (u.x - (x + 0.5) * sx) ** 2 + (u.y - (y + 0.5) * sy) ** 2 <
-            radius * radius
-          )
-            visible[y * w + x] = 1;
+      const building = this.buildingById.get(u.garrisonedIn);
+      const radius = (UNIT_TYPES[u.type]?.vision ?? 180) + (building ? 180 : 0);
+      const origins = building
+        ? building.firePoints.map((p) => ({
+            ...p,
+            z: Math.min(building.height - 1, 5),
+          }))
+        : [
+            {
+              x: u.x,
+              y: u.y,
+              z: u.type === "jet" ? 65 : u.type === "helicopter" ? 35 : 2,
+            },
+          ];
+      for (const origin of origins) {
+        const points = visibilityOutline(
+          this.fogGrid,
+          origin,
+          radius,
+          u.type === "recon",
+          this.state.smokes,
+        );
+        ctx.beginPath();
+        points.forEach((p, i) =>
+          i ? ctx.lineTo(p.x / sx, p.y / sy) : ctx.moveTo(p.x / sx, p.y / sy),
+        );
+        ctx.closePath();
+        ctx.fill();
+      }
     }
-    for (let i = 0; i < visible.length; i++) {
-      if (visible[i]) this.explored[i] = 1;
+    const image = ctx.getImageData(0, 0, w, h);
+    for (let i = 0; i < w * h; i++) {
+      const visible = image.data[i * 4 + 3] > 0;
+      if (visible) this.explored[i] = 1;
       image.data[i * 4] = 8;
       image.data[i * 4 + 1] = 18;
       image.data[i * 4 + 2] = 25;
-      image.data[i * 4 + 3] = visible[i] ? 0 : this.explored[i] ? 115 : 195;
+      image.data[i * 4 + 3] = visible ? 0 : this.explored[i] ? 115 : 195;
     }
     ctx.putImageData(image, 0, 0);
     this.fogTexture.needsUpdate = true;
@@ -660,13 +824,52 @@ export class Battlefield {
       c.font = "bold 11px Arial";
       c.fillText(String(index + 1), p.x, p.y - 10);
     }
+    for (const b of this.map.buildings ?? []) {
+      const occupants = this.state.units.filter((u) => u.garrisonedIn === b.id),
+        own = occupants.filter((u) => u.team === this.myTeam);
+      const selected = b.id === this.selectedBuildingId;
+      if (
+        !selected &&
+        !own.length &&
+        !(this.highlightBuildings && b.occupiable)
+      )
+        continue;
+      const p = this.buildingScreen(b);
+      if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) continue;
+      const corners = [
+        [b.x, b.y],
+        [b.x + b.w, b.y],
+        [b.x + b.w, b.y + b.h],
+        [b.x, b.y + b.h],
+      ].map(([x, y]) => this.screenAt(x, y, b.height ?? 18));
+      c.strokeStyle = selected ? "#ffe0a3" : own.length ? "#91d6ef" : "#c9debe";
+      c.lineWidth = selected ? 2 : 1;
+      c.beginPath();
+      corners.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)));
+      c.closePath();
+      c.stroke();
+      if (selected || own.length || this.zoom > 1) {
+        const label = own.length
+          ? "⌂ " + own.length + "/" + b.capacity
+          : "⌂ " + b.capacity;
+        c.font = "bold 11px Arial";
+        c.fillStyle = "#10232bf0";
+        c.fillRect(p.x - 20, p.y - 12, 40, 18);
+        c.fillStyle = own.length ? "#91d6ef" : "#e0e9cf";
+        c.fillText(label, p.x, p.y + 1);
+      }
+      if (selected)
+        for (const door of b.doors ?? []) {
+          const d = this.screenAt(door.x, door.y, 1);
+          c.fillStyle = "#ffe0a3";
+          c.beginPath();
+          c.arc(d.x, d.y, 3, 0, Math.PI * 2);
+          c.fill();
+        }
+    }
     for (const u of this.state.units) {
       if (u.loadedIn) continue;
-      const p = this.screenAt(
-        u.x,
-        u.y,
-        UNIT_TYPES[u.type]?.domain === "air" ? 72 : 20,
-      );
+      const p = this.unitScreen(u, 20);
       if (p.x < 0 || p.x > this.width || p.y < 0 || p.y > this.height) continue;
       const sel = this.selected.has(u.id);
       c.fillStyle = u.team === 0 ? "#98d8ed" : "#f5a991";
@@ -717,6 +920,15 @@ export class Battlefield {
         }[t.type] ?? "#5b7258";
       c.fillRect(t.x * sx, t.y * sy, t.w * sx, t.h * sy);
     }
+    for (const b of this.map.buildings ?? []) {
+      c.fillStyle = b.occupiable ? "#b6b09a" : "#76837b";
+      c.fillRect(
+        b.x * sx,
+        b.y * sy,
+        Math.max(1, b.w * sx),
+        Math.max(1, b.h * sy),
+      );
+    }
     for (const s of this.state.sectors) {
       c.strokeStyle =
         s.owner === 0 ? "#91d9f4" : s.owner === 1 ? "#f3a38e" : "#e0d9ac";
@@ -750,19 +962,23 @@ export class Battlefield {
     requestAnimationFrame(this.animate);
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
+    const stopped = this.state?.paused || this.state?.timeControl?.paused;
+    const gameDelta = stopped ? 0 : dt * (this.state?.timeControl?.speed ?? 1);
     for (const m of this.units.values()) {
       const u = m.userData.unit;
-      m.position.x += (u.x - m.position.x) * Math.min(1, dt * 16);
-      m.position.z += (u.y - m.position.z) * Math.min(1, dt * 16);
+      m.position.x +=
+        (u.x - m.position.x) * (stopped ? 1 : Math.min(1, dt * 16));
+      m.position.z +=
+        (u.y - m.position.z) * (stopped ? 1 : Math.min(1, dt * 16));
       if (Number.isFinite(u.heading)) m.rotation.y = -u.heading - Math.PI / 2;
       const rotor = m.getObjectByName("rotor");
-      if (rotor) rotor.rotation.y += dt * 35;
+      if (rotor) rotor.rotation.y += gameDelta * 35;
     }
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i];
-      e.life -= dt;
+      e.life -= gameDelta;
       e.mesh.material.opacity = Math.max(0, e.life * 3);
-      e.mesh.scale.addScalar(dt * 6);
+      e.mesh.scale.addScalar(gameDelta * 6);
       if (e.life <= 0) {
         this.scene.remove(e.mesh);
         e.mesh.geometry.dispose();
