@@ -1,73 +1,83 @@
-# Estado de Frente Boreal 0.2
+# Estado de Frente Boreal 0.3
 
-Actualización del juego existente · 1 de octubre de 2026
+Actualización del proyecto existente · 1 de octubre de 2026
 
-**Juego:** https://frente-boreal.onrender.com · **Código:** https://github.com/IzanPrados/frente-boreal
+**[Juego](https://frente-boreal.onrender.com)** · **[Código](https://github.com/IzanPrados/frente-boreal)**
 
-## Cambios
+## Terreno y mapas
 
-### Campo de batalla y controles
+Se conservan los tres escenarios anteriores, con poblaciones conectadas, calles, edificios y vegetación revisados. Llanura del Estuario mide **4800 × 3000**, frente a **3200 × 2000** del mayor anterior: **2,25 veces su superficie jugable**.
 
-- Barra superior compacta con puntos, objetivos, recursos y tiempo. Refuerzos, minimapa, grupos y acciones detalladas se abren de uno en uno.
-- Sin selección no aparece la franja de órdenes. Al seleccionar se muestran resumen, Mover, Alto y acceso a más acciones. Las estadísticas se consultan bajo demanda.
-- La franja se oculta al elegir destino. Un botón de 44 px permite cancelar la orden pendiente con el dedo; cerrar paneles no envía órdenes al mapa.
-- Distribución específica para teléfono horizontal y vertical, tableta y escritorio, con bordes seguros y altura dinámica. La aplicación instalada permite ambas orientaciones.
-- Minimapa plegable, cámara y vista general adaptados al escenario. Avisos breves de 3,2 segundos; información persistente solo cuando exige actuar.
+| Escenario | Dimensiones | Objetivos | Edificios sólidos |
+| --- | --- | ---: | ---: |
+| Valle de la Bruma | 1600 × 1000 | 3 | 6 |
+| Cuenca del Norte | 2400 × 1600 | 5 | 14 |
+| Frontera de los Siete Pasos | 3200 × 2000 | 7 | 28 |
+| Llanura del Estuario | 4800 × 3000 | 9 | 96 |
 
-### Movimiento y combate
+El Estuario tiene 84 edificios ocupables, cinco puentes, poblaciones, carreteras laterales, bosques y rutas de flanqueo. Los elementos nuevos tienen correspondencia a 180 grados para mantener aproximaciones equivalentes entre bandos. Cámara, vista general y minimapa leen las dimensiones de cada escenario.
 
-- Mover y Avanzar y atacar comprueban blancos cada 0,2 s. Un enemigo detectado, compatible, dentro de alcance y con tiro válido interrumpe la ruta; la unidad conserva destino y camino.
-- Mantiene el blanco válido actual; al buscar otro prioriza cercanía con preferencia por exploradores y menor prioridad para logística; usa el identificador para desempatar. No persigue blancos fuera del alcance.
-- Tras perder objetivos, una espera máxima de 0,65 s evita alternancias rápidas y permite reanudar la ruta. Sin munición o capacidad de ataque continúa su función.
-- Mover de nuevo, fuego dirigido, reabastecer y Alto sustituyen la orden anterior. Alto borra el destino; humo conserva la ruta como habilidad.
-- La misma simulación ejecuta el modo individual y el servidor multijugador. El servidor transmite pausa de combate, ataques y reanudación.
+Árboles aislados, arboledas y bosque denso afectan de forma distinta a detección, protección y velocidad. La vegetación atenúa los rayos según el tramo atravesado. Las casas dibujadas son los mismos obstáculos que usa la simulación: bloquean movimiento terrestre, visión y tiro directo según la altura. La artillería conserva el fuego indirecto.
 
-### Preparación y economía
+Detección, alcance y tiro se comprueban por separado. Un aliado puede detectar un enemigo detrás de una casa, pero una unidad sin tiro válido sigue su camino. El combate automático conserva destino y objetivo estable; Alto y las nuevas órdenes sustituyen la ruta anterior.
 
-- Pantalla previa con recursos iniciales 0–10000; ingresos 0,5×/1×/2×/3×/5×; límite total 24–120 unidades; 3–60 minutos; 100–2000 puntos; escenario y tamaño.
-- Valores iniciales: Valle de la Bruma, 410 recursos, 1×, 120 unidades, 12 minutos y 300 puntos. Restauración y último ajuste guardado localmente.
-- Cada humano y la IA reciben el saldo inicial y su fuerza de partida. El multiplicador se aplica una sola vez a los 6 recursos por segundo. No modifica saldo inicial ni precios. Los objetivos reducen puntos enemigos, no conceden dinero.
-- El anfitrión modifica la configuración; todos la ven antes de prepararse. Cambiarla desmarca a todos y aumenta la revisión. El servidor rechaza una preparación sobre ajustes antiguos y bloquea cambios tras empezar.
+## Ocupación real
 
-### Mapas y navegación
+- La infantería reserva plazas de forma atómica, camina hasta una puerta y entra al llegar. Cambiar la orden o morir libera reservas. Los bandos enemigos no comparten edificio.
+- Conserva salud, munición, supresión y demás estado. La protección propia del edificio comienza dentro; sigue siendo vulnerable.
+- Dispara desde ventanas exteriores válidas, comprobando la pared propia y otros obstáculos.
+- Salir utiliza posiciones transitables y separadas. Mover desde dentro sale y continúa. Si todos los accesos están bloqueados, la orden se rechaza sin sacar tropas a puntos inválidos.
+- El panel contextual muestra plazas, reservas y tropas del propio equipo. No publica reservas enemigas; los ocupantes enemigos solo aparecen si son detectados.
+- La IA ocupa posiciones útiles junto a objetivos y combate contra posiciones detectadas. No se simulan habitaciones ni destrucción de edificios.
 
-| Escenario | Dimensiones | Objetivos | Áreas funcionales |
-|---|---|---:|---:|
-| Valle de la Bruma | 1600 × 1000 | 3 | 18 |
-| Cuenca del Norte | 2400 × 1600 | 5 | 32 |
-| Frontera de los Siete Pasos | 3200 × 2000 | 7 | 62 |
+## Pausa y velocidad
 
-El mapa grande tiene cuatro veces la superficie original, cinco cruces del río, canales laterales, varias poblaciones, bosques y circuitos de carreteras. Los nuevos escenarios tienen simetría de terreno y aproximaciones equivalentes para ambos bandos. Carreteras, agua, bosque y población afectan realmente a movimiento, cobertura y visibilidad. Las casas individuales siguen siendo representación de una zona urbana, sin colisión propia; no hay elevación funcional.
+Pausa, 0,5×, 1× y 2× controlan toda la simulación mediante pasos fijos de 0,1 segundos: movimiento, fuego, proyectiles, recarga, humo, suministro, captura, ingresos e IA. Los recursos por minuto de partida permanecen iguales y el multiplicador se aplica una sola vez.
 
-Se corrigieron rutas que rozaban esquinas de agua y destinos válidos de orillas o puentes cuyo centro de celda caía en agua. Cada partida tiene su mapa; los índices compartidos son inmutables y no mezclan salas.
+En pausa siguen funcionando cámara, zoom, selección y consulta de edificios. Hasta 64 órdenes por jugador pueden quedar preparadas; no crean unidades, reservan plazas ni gastan recursos antes de reanudar. Se validan otra vez al ejecutarse y avisan si ya no pueden cumplirse. Rendirse y abandonar siguen disponibles como decisiones de sesión.
 
-## Pruebas ejecutadas
+**Cualquiera de los dos compañeros** puede cambiar el tiempo. El servidor ordena las peticiones, aumenta su revisión y distribuye el nombre de quien lo cambió. La comunicación continúa y reconectar recupera reloj y órdenes. Uno contra uno conserva 1×.
 
-- **49/49 pruebas Node:** 27 de simulación y movimiento, 9 de mapas/configuración y 13 de servidor/red. Movimiento normal/grupos, detenerse/disparar/reanudar, objetivos ocultos/fuera de alcance, cambios de órdenes, munición, compatibilidad, logística, artillería, transporte, captura, IA, economía, propiedad, reconexión y caché.
-- **Dos clientes TCP/WebSocket reales locales:** ajustes compartidos, preparación invalidada, bloqueo al iniciar, precios e ingresos coherentes y grupo que se detiene, combate y reanuda con estados idénticos.
-- **7/7 comprobaciones de navegador, tanto locales como sobre la URL pública de Render:** duelo, cooperativo, teléfono horizontal 844 × 390, teléfono vertical 390 × 844, tableta 1024 × 768, cambio de tres mapas sin recargar y funcionamiento sin conexión. Controles de al menos 44 px y 89–95 % de los puntos muestreados libres de controles durante la observación inicial. Cero errores de página en la ejecución pública.
-- Cancelación táctil de movimiento y despliegue, selección/grupos, pan/pellizco, apertura y cierre de paneles sin órdenes fantasma, conservación de identidad al recargar y final de ambos modos online.
-- PWA: 20 recursos, incluidos mapas y configuración; recarga con red bloqueada y partida individual hasta tick 31.
-- **3000 rutas de comprobación:** ninguna vacía. Rutas reales desde ambas bases a todos los objetivos nuevos sin entrar en agua. Partidas completas de IA en los dos escenarios nuevos, contra un jugador inactivo: victorias por puntos a 142,7 y 169,9 s; capturas de 5/5 y 6/7 objetivos.
+La suspensión individual al abrir menús o pasar a segundo plano es independiente del reloj manual. Los intervalos largos no se recuperan como una ráfaga de simulación.
 
-Las pruebas de navegador usan Edge/Chromium en Windows con contextos aislados y gestos emulados. Los escenarios programados de simulación prueban reglas reales, pero no equivalen a partidas humanas. El informe cronológico está en [PRUEBAS-NAVEGADOR.md](PRUEBAS-NAVEGADOR.md).
+## Interfaz y funciones conservadas
+
+Se conserva la interfaz compacta con un solo panel secundario abierto. La información de edificios aparece al solicitarla; las casas compatibles se señalan al seleccionar infantería. Los indicadores propios permiten seleccionar entre árboles. El reloj usa botones de 44 px y una línea discreta con estado y autor.
+
+Se mantienen individual contra IA, cooperativo, PvP, grupos, refuerzos, transporte, humo, logística, artillería, configuración compartida de recursos/ingresos/duración/puntos y último ajuste local. Geometría y texturas propias originales; licencias de Three.js y ws incluidas.
+
+## Pruebas realmente ejecutadas
+
+- **77/77 pruebas Node**, incluida simulación real con casos programados: paredes y alturas, vegetación, ventanas, protección, capacidad, estado conservado, salidas bloqueadas, privacidad, IA y funciones anteriores.
+- **22 de red y tiempo** dentro de ese total: 16 de servidor con TCP/WebSocket local real y seis del reloj. Ambos compañeros pueden cambiarlo, incluso con peticiones casi simultáneas; revisiones idénticas, reconexión, idempotencia y PvP sin cambios.
+- Un minuto de juego a 0,5×, 1× y 2× produce un estado completo idéntico: IA, economía, artillería, recargas, humo y suministro. Pausa y suspensión congelan los efectos.
+- Dos clientes locales preparan entradas, salidas y movimiento desde edificios; reservas, llegada a puertas, ocupación y destinos coinciden, sin efectos antes de reanudar.
+- Rutas a todos los objetivos desde ambas bases y a todas las puertas. Comprobación adicional de **4000 rutas aleatorias con semilla**: ninguna vacía ni atravesando agua o edificios, con muestreo cada cuatro unidades.
+- Partidas completas programadas de IA en los cuatro mapas. En el banco de rendimiento, Estuario terminó a **215 segundos de juego**, siete de nueve sectores controlados y seis entradas efectivas. No fue una partida humana.
+- Compilación estática y PWA reproducible: **23 recursos**, incluidos terreno, reloj y máscara de visión.
+
+**10/10 comprobaciones de navegador locales y 10/10 sobre la URL pública**: PvP, cooperativo con control de tiempo por ambos jugadores y reconexión en pausa, cuatro tamaños de pantalla (844 × 390, 390 × 844, 1024 × 768 y 768 × 1024), cambio de cuatro mapas, ocupación real mediante la interfaz en Valle/Estuario y PWA sin conexión con 23 recursos. Cero errores de página. Botones de al menos 44 px, sin paneles o botones recortados; 84–94 % de puntos muestreados del mapa libres durante observación inicial. Órdenes preparadas sin efecto en pausa, entrada caminando, panel de ocupantes, salida y economía comprobados por controles reales.
+
+Registro público: [PRUEBAS-NAVEGADOR.md](PRUEBAS-NAVEGADOR.md). Registro de desarrollo local, incluidos fallos del arnés corregidos antes de la pasada completa: [PRUEBAS-LOCALES-V03.md](PRUEBAS-LOCALES-V03.md). Son contextos aislados de Edge/Chromium en Windows; gestos y tamaños de dispositivo emulados. La prueba offline bloquea la red del contexto y llega al tick 31 en Estuario.
 
 ## Rendimiento
 
-Con 120 unidades sostenidas en el mapa grande, el p95 de simulación fue 0,858 ms; generar y serializar el estado, 0,425 ms por cliente. La búsqueda de rutas de un grupo de 60 pasó de 181,4 a 36,2 ms p95 mediante índice espacial, enlaces de navegación y cola de prioridad.
+Ryzen 9 5900X, Node 24: Estuario con 120 unidades sostenidas, **0,893 ms p95** por paso, **0,574 ms p95** por estado JSON y **50,840 ms p95** por orden de 60 unidades. Índice espacial de edificios, caché de rutas acotada y conectores exactos comprobados.
 
-La geometría fija de cada unidad se agrupa por material. En una colocación controlada de 120 unidades, el mapa grande conservó sus 45440 triángulos y pasó de 957 a 377 llamadas de dibujo. La muestra de seis segundos a 1440 × 900 dio 240 FPS observados en RTX 3060; no demuestra rendimiento móvil ni estabilidad durante una partida larga. Condiciones y datos: [RENDIMIENTO.md](RENDIMIENTO.md).
+RTX 3060: colocación sintética de 120 unidades visibles durante seis segundos a 1440 × 900, **235 FPS** en Estuario, 150334 triángulos y 386 llamadas de dibujo. Árboles por instancias y geometría agrupada. La niebla visual se calcula cada 700 ms y es una aproximación; la detección de enemigos procede siempre de la simulación autoritativa. [Condiciones y datos](RENDIMIENTO.md).
 
-## Publicación y límites
+## Publicación
 
-Render confirmó **Deploy succeeded / Live** para la actualización el 1 de octubre de 2026, con servicio activo a las **23:05:55 de Madrid**. Despliegue: `dep-davcm6qd0e5s73ffjldg`. Código ejecutado: `805721dfe3b702e4f4885dbcb646e4cbb8603915`. Versión PWA: `9a850be6f810e6b226e8`. Se compararon los archivos principales publicados con los locales y se repitió la batería de navegador sobre HTTPS/WSS.
+Render confirmó **Deploy succeeded / Live** el 1 de octubre de 2026, a las **23:51:47 de Madrid**. Despliegue: `dep-davdblu7bikc73dkct60`. Código ejecutado: `bd713651e433254e17174a2b2467e80e195f9f92`. PWA 0.3.0: `1d4641810735ca36f964`. Se compararon nueve archivos públicos principales con los locales y se ejecutaron las diez comprobaciones de navegador sobre HTTPS/WSS.
 
-Se conserva el servicio Render existente, identificado como Free. No se añadió tarjeta, suscripción, servicio de pago ni apertura de red del ordenador. El servidor local escucha solo en 127.0.0.1. Los commits posteriores de documentación y pruebas no alteran los archivos del juego desplegado.
+Se conserva el servicio Render existente, Free, sin tarjeta, suscripción ni servicios de pago nuevos. El servidor local solo escucha en 127.0.0.1. Los commits posteriores de documentación y pruebas no alteran el código ejecutado.
 
-Para recibir la actualización: abre el juego con Internet y pulsa **Actualizar** cuando aparezca en la pantalla de operaciones. Termina primero cualquier partida. La PWA conserva la versión anterior hasta que la nueva descarga esté completa.
+Para actualizar: abrir con Internet y pulsar **Actualizar** cuando se ofrezca en operaciones, después de terminar la partida. La PWA conserva la versión anterior hasta completar y verificar la descarga.
 
-- Pendiente de verificar físicamente: Safari en iPhone/iPad, pantalla de inicio, bordes seguros reales, orientación, cambios de aplicación, temperatura y FPS durante una partida completa.
-- Dos contextos del mismo PC, aunque conecten al servidor público, no equivalen a dos dispositivos o redes distintas. Falta esa prueba física.
-- El servidor gratuito puede dormir, tardar en despertar o reiniciarse. Las salas viven en memoria; un reinicio las pierde. Se conservan pausa y reconexión de hasta 90 s mientras vive el proceso.
-- Los límites de ocho salas y 32 conexiones son protecciones, no capacidad simultánea comprobada en la instancia Free. Se mantienen estados JSON completos; falta medir tráfico y latencia sostenidos en móviles.
-- Gráficos sencillos, terreno plano y aviación de movimiento/parada simplificado. Balance humano de mapas nuevos pendiente; estas limitaciones existentes no se presentan como funciones terminadas.
+## Límites pendientes
+
+- Sin pruebas físicas de Safari, iPhone, iPad o instalación desde Inicio. Faltan orientación, bordes seguros, segundo plano, temperatura y rendimiento durante partidas largas en hardware Apple.
+- Dos contextos del mismo PC, incluso sobre el servidor público, no equivalen a dos dispositivos ni a dos redes distintas.
+- Render Free puede dormir o reiniciarse. Las salas viven en memoria; se pierden al reiniciar. Reconexión de hasta 90 segundos mientras vive el proceso.
+- No se ha medido la capacidad de ocho salas simultáneas en Free. Los estados completos con 120 unidades pueden superar 560 kB/s entre dos clientes; faltan medidas de tráfico y latencia móvil.
+- Terreno plano, gráficos sencillos, interiores abstractos y aviación simplificada. El equilibrio humano de mapas y posiciones necesita partidas reales.
