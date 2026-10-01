@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, applyCommand, stepGame, terrainAt } from '../shared/sim.mjs';
+import { createGame, applyCommand, stepGame, terrainAt, groundPassable } from '../shared/sim.mjs';
 import { MAPS } from '../shared/maps.mjs';
 
 function fixture(mapId) {
@@ -55,7 +55,7 @@ test('seeded arbitrary ground endpoints have valid routes independent of other r
   const point = map => {
     let p;
     do p = { x: 15 + random() * (map.width - 30), y: 15 + random() * (map.height - 30) };
-    while (terrainAt(p.x, p.y, map) === 'water');
+    while (!groundPassable(p.x, p.y, map));
     return p;
   };
   for (let sample = 0; sample < 200; sample++) for (const { game, scout } of fixtures) {
@@ -65,9 +65,20 @@ test('seeded arbitrary ground endpoints have valid routes independent of other r
       const samples = Math.ceil(Math.hypot(destination.x - origin.x, destination.y - origin.y) / 2);
       for (let i = 0; i <= samples; i++) {
         const t = i / Math.max(1, samples);
-        assert.notEqual(terrainAt(origin.x + (destination.x - origin.x) * t, origin.y + (destination.y - origin.y) * t, game.map), 'water');
+        assert.equal(groundPassable(origin.x + (destination.x - origin.x) * t, origin.y + (destination.y - origin.y) * t, game.map), true);
       }
       origin = destination;
     }
   }
+});
+
+test('a route cached by another room cannot change the route for the same final command', () => {
+  const left = fixture('frontera-de-los-siete-pasos'), right = fixture('frontera-de-los-siete-pasos');
+  // Separate immutable definition identity gives the comparison an empty cache.
+  right.game.map = { ...right.game.map };
+  const origin = { x: 220, y: 1000 }, destination = { x: 2465, y: 1825 };
+  route(left.game, left.scout, origin, { x: 2475, y: 1835 });
+  route(left.game, left.scout, origin, destination);
+  route(right.game, right.scout, origin, destination);
+  assert.deepEqual(left.scout.path, right.scout.path);
 });
