@@ -1,4 +1,5 @@
 import { MAP } from './data.mjs';
+import { VEGETATION_PRESETS } from './terrain.mjs';
 
 const rect = (id, type, x, y, w, h) => ({ id, type, x, y, w, h });
 const sector = (id, name, x, y, radius = 110) => ({ id, name, x, y, radius });
@@ -119,6 +120,128 @@ const large = {
   ],
 };
 
+const estuary = {
+  id: 'llanura-del-estuario', name: 'Llanura del Estuario', size: 'very-large', sizeLabel: 'Muy grande',
+  width: 4800, height: 3000,
+  description: 'Nueve sectores entre dos villas, granjas, arboledas y cinco pasos fluviales. Calles y edificios ocupables protegen los accesos; las rutas exteriores y la llanura central permiten maniobrar entre frentes.',
+  spawns: [{ x: 300, y: 1500 }, { x: 4500, y: 1500 }],
+  sectors: [
+    sector('northern-lock', 'Esclusa Norte', 2400, 360, 130),
+    sector('western-village', 'Villa del Fresno', 1680, 920, 145),
+    sector('eastern-grove', 'Arboleda del Este', 2840, 760, 130),
+    sector('eastern-farm', 'Granja del Este', 3480, 1120, 130),
+    sector('central-customs', 'Aduana Central', 2400, 1500, 155),
+    sector('western-farm', 'Granja del Oeste', 1320, 1880, 130),
+    sector('western-grove', 'Arboleda del Oeste', 1960, 2240, 130),
+    sector('eastern-village', 'Villa del Sauce', 3120, 2080, 145),
+    sector('southern-lock', 'Esclusa Sur', 2400, 2640, 130),
+  ],
+  terrain: [
+    rect('estuary-river', 'water', 2320, 0, 160, 3000),
+    rect('northern-bridge', 'road', 1320, 320, 2160, 80),
+    rect('northern-flank-bridge', 'road', 1600, 920, 1600, 80),
+    rect('central-highway', 'road', 0, 1460, 4800, 80),
+    rect('southern-flank-bridge', 'road', 1600, 2000, 1600, 80),
+    rect('southern-bridge', 'road', 1320, 2600, 2160, 80),
+    ...paired(4800, 3000, [
+      rect('western-water-meadow', 'water', 920, 520, 120, 560),
+      rect('western-meadow-crossing', 'road', 560, 760, 800, 80),
+      rect('western-rear-road', 'road', 560, 320, 80, 2360),
+      rect('western-mid-road', 'road', 1280, 320, 80, 2360),
+      rect('western-forward-road', 'road', 2080, 320, 80, 2360),
+      rect('western-north-connector', 'road', 600, 320, 760, 80),
+      rect('western-south-connector', 'road', 600, 2600, 760, 80),
+      rect('western-city-route', 'road', 1320, 920, 840, 80),
+      rect('western-farm-route', 'road', 600, 1840, 1560, 80),
+      rect('western-grove-route', 'road', 1320, 2200, 840, 80),
+      rect('western-village-district', 'town', 1440, 720, 560, 480),
+      rect('western-farmstead', 'town', 1080, 1720, 440, 360),
+      rect('western-north-bank-hamlet', 'town', 2160, 440, 120, 280),
+      rect('western-customs-yard', 'town', 2160, 1280, 120, 160),
+      rect('western-south-bank-hamlet', 'town', 2160, 2360, 120, 160),
+      rect('western-rear-market', 'town', 720, 1200, 280, 200),
+      rect('western-southern-farm', 'town', 720, 2240, 280, 200),
+      rect('western-north-pine', 'forest', 240, 80, 600, 160),
+      rect('western-ridge-forest', 'forest', 1160, 80, 600, 160),
+      rect('western-north-bank-wood', 'forest', 1880, 40, 400, 200),
+      rect('western-lock-screen', 'forest', 2120, 400, 160, 40),
+      rect('western-canal-screen', 'forest', 680, 880, 200, 240),
+      rect('western-canal-forward-screen', 'forest', 1080, 520, 160, 400),
+      rect('western-open-grove', 'forest', 1040, 1160, 160, 160),
+      rect('western-mid-bank-wood', 'forest', 2160, 1000, 120, 200),
+      rect('western-rear-grove', 'forest', 240, 1800, 200, 240),
+      rect('western-farm-windbreak', 'forest', 720, 1600, 480, 80),
+      rect('western-objective-grove', 'forest', 1800, 2120, 240, 400),
+      rect('western-south-rear-wood', 'forest', 320, 2440, 160, 440),
+      rect('western-south-bank-pine', 'forest', 1520, 2760, 760, 160),
+    ]),
+  ],
+};
+
+const overlaps = (a, b, padding = 0) => a.x < b.x + b.w + padding && a.x + a.w > b.x - padding
+  && a.y < b.y + b.h + padding && a.y + a.h > b.y - padding;
+const nearestOn = (point, rectangle) => ({
+  x: Math.max(rectangle.x, Math.min(rectangle.x + rectangle.w, point.x)),
+  y: Math.max(rectangle.y, Math.min(rectangle.y + rectangle.h, point.y)),
+});
+function mirrorBuilding(building, map) {
+  const rotate = point => ({ x: map.width - point.x, y: map.height - point.y });
+  return { ...building, id: `${building.id}-opposite`, x: map.width - building.x - building.w, y: map.height - building.y - building.h,
+    doors: building.doors.map(rotate), firePoints: building.firePoints.map(rotate) };
+}
+
+function addSettlement(map, town, roads) {
+  const streets = [];
+  for (let offset = 88; offset < town.w - 12; offset += 96) streets.push(rect(`${town.id}-street-x${offset}`, 'road', town.x + offset - 16, town.y, 32, town.h));
+  for (let offset = 88; offset < town.h - 12; offset += 96) streets.push(rect(`${town.id}-street-y${offset}`, 'road', town.x, town.y + offset - 16, town.w, 32));
+  const center = { x: town.x + town.w / 2, y: town.y + town.h / 2 };
+  const closest = roads.map(road => nearestOn(center, road)).sort((a, b) => Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y))[0];
+  if (closest) {
+    if (Math.abs(closest.x - center.x) > 1) streets.push(rect(`${town.id}-access-x`, 'road', Math.min(center.x, closest.x), center.y - 16, Math.abs(center.x - closest.x) + 1, 32));
+    if (Math.abs(closest.y - center.y) > 1) streets.push(rect(`${town.id}-access-y`, 'road', closest.x - 16, Math.min(center.y, closest.y), 32, Math.abs(center.y - closest.y) + 1));
+  }
+  return streets;
+}
+
+function enhanceMap(original, smallGroves) {
+  const map = { ...original, terrain: original.terrain.map(feature => feature.type === 'forest'
+    ? { ...feature, ...VEGETATION_PRESETS[/(grove|copse|rear-forest)/.test(feature.id) ? 'grove' : 'dense'] }
+    : { ...feature }) };
+  for (const grove of smallGroves) map.terrain.push(...paired(map.width, map.height, [{ ...grove, ...VEGETATION_PRESETS[grove.w <= 40 ? 'isolated' : 'grove'] }]));
+  const roads = map.terrain.filter(t => t.type === 'road');
+  const towns = map.terrain.filter(t => t.type === 'town');
+  for (const town of towns) {
+    if (town.id.endsWith('-opposite')) continue;
+    const streets = addSettlement(map, town, roads);
+    const counterpart = towns.some(other => other.id === `${town.id}-opposite`);
+    map.terrain.push(...(counterpart ? paired(map.width, map.height, streets) : streets));
+  }
+  map.buildings = [];
+  for (const town of towns) {
+    if (town.id.endsWith('-opposite')) continue;
+    let serial = 0;
+    const firstRow = map.id === 'valle-bruma' && town.id === 'town-east' ? 20 : 40;
+    for (let dy = firstRow; dy < town.h - 18; dy += 96) for (let dx = 40; dx < town.w - 18; dx += 96) {
+      const x = town.x + dx - 20, y = town.y + dy - 20;
+      const footprint = { x, y, w: 40, h: 40 };
+      if (map.terrain.some(feature => ['road', 'water'].includes(feature.type) && overlaps(footprint, feature, 4))) continue;
+      if (map.sectors.some(point => Math.hypot(point.x - x - 20, point.y - y - 20) < 55)) continue;
+      if (map.spawns.some(point => Math.hypot(point.x - x - 20, point.y - y - 20) < 220)) continue;
+      serial++;
+      const capacity = serial % 5 === 0 ? 0 : serial % 3 === 0 ? 2 : 1;
+      const building = { id: `${town.id}-building-${serial}`, name: `${capacity ? 'Casa' : 'Almacén'} ${serial}`, ...footprint,
+        height: capacity === 2 ? 32 : capacity === 0 ? 18 : 24, kind: capacity === 0 ? 'warehouse' : 'house',
+        occupiable: capacity > 0, capacity, protection: capacity === 2 ? 0.42 : 0.45,
+        doors: [{ x: x + 20, y: y - 12 }, { x: x + 52, y: y + 20 }, { x: x + 20, y: y + 52 }, { x: x - 12, y: y + 20 }],
+        firePoints: [{ x: x + 20, y: y - 4 }, { x: x + 44, y: y + 20 }, { x: x + 20, y: y + 44 }, { x: x - 4, y: y + 20 }],
+      };
+      map.buildings.push(building);
+      if (towns.some(other => other.id === `${town.id}-opposite`)) map.buildings.push(mirrorBuilding(building, map));
+    }
+  }
+  return map;
+}
+
 function freezeTree(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freezeTree(child);
@@ -128,7 +251,15 @@ function freezeTree(value) {
 }
 
 export const DEFAULT_MAP_ID = compact.id;
-export const MAPS = freezeTree([compact, medium, large]);
+export const MAPS = freezeTree([
+  enhanceMap({ ...compact, terrain: [...compact.terrain,
+    rect('town-west-north', 'town', 320, 255, 140, 100),
+    rect('town-east-south', 'town', 1150, 700, 180, 100),
+  ] }, [rect('orchard-west', 'forest', 400, 680, 96, 48), rect('lone-oak-west', 'forest', 160, 700, 32, 32)]),
+  enhanceMap(medium, [rect('orchard-west', 'forest', 720, 400, 80, 60), rect('lone-oak-west', 'forest', 1040, 160, 32, 32)]),
+  enhanceMap(large, [rect('orchard-west', 'forest', 600, 900, 96, 40), rect('lone-oak-west', 'forest', 960, 840, 32, 32)]),
+  enhanceMap(estuary, [rect('orchard-west', 'forest', 1600, 1600, 240, 120), rect('lone-oak-west', 'forest', 1160, 1360, 32, 32), rect('lone-oak-forward-west', 'forest', 1880, 1200, 32, 32)]),
+]);
 const byId = new Map(MAPS.map(map => [map.id, map]));
 
 export function getMap(id = DEFAULT_MAP_ID) {
