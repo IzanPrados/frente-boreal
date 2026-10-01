@@ -14,6 +14,7 @@ test('default configuration preserves the existing compact scenario and economy'
   assert.equal(DEFAULT_CONFIG.maxUnits, RULES.maxUnits);
   assert.equal(DEFAULT_CONFIG.duration, RULES.defaultDuration);
   assert.equal(DEFAULT_CONFIG.tickets, RULES.tickets);
+  assert.equal(DEFAULT_CONFIG.allowEnemyReveal, false);
   const compact = getMap();
   for (const original of MAP.terrain) {
     const retained = compact.terrain.find(feature => feature.id === original.id);
@@ -33,6 +34,7 @@ test('strict configuration rejects invalid values instead of silently changing a
     duration: [-1, 179, 3601, 500.5, '720'],
     tickets: [0, 99, 2001, 101.5, '300'],
     mapId: ['', '__proto__', 'missing-map', 1, null],
+    allowEnemyReveal: [null, 0, 1, 'true', 'false', [], {}, undefined],
   };
   for (const [field, values] of Object.entries(invalid)) for (const value of values) {
     const result = validateConfig({ [field]: value });
@@ -57,6 +59,7 @@ test('all supported multipliers, maps and boundary values round-trip without mod
   ]) {
     assert.deepEqual(validateConfig(fields).config, { ...DEFAULT_CONFIG, ...fields });
   }
+  for (const allowEnemyReveal of [true, false]) assert.deepEqual(validateConfig({ allowEnemyReveal }).config, { ...DEFAULT_CONFIG, allowEnemyReveal });
 });
 
 test('saved settings retain valid preferences and independently repair malformed or obsolete fields', () => {
@@ -68,6 +71,9 @@ test('saved settings retain valid preferences and independently repair malformed
   const old = { startingResources: 2000 };
   normalizeConfig(old);
   assert.deepEqual(old, { startingResources: 2000 }, 'Normalization must not mutate local preferences');
+  assert.equal(normalizeConfig(old).allowEnemyReveal, false, 'Las preferencias anteriores migran con revelado desautorizado.');
+  assert.equal(normalizeConfig({ allowEnemyReveal: 'true' }).allowEnemyReveal, false);
+  assert.equal(normalizeConfig({ allowEnemyReveal: true }).allowEnemyReveal, true);
 });
 
 // This terrain inspection is intentionally independent of the simulation's
