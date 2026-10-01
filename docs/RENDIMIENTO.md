@@ -1,54 +1,84 @@
-# Rendimiento: medición inicial y objetivo móvil
+# Rendimiento: tres mapas y 120 unidades
 
-## Qué se ha medido
+## Alcance de la medición
 
-Medición ejecutada el **1 de octubre de 2026**, en Windows x64 con Node **v24.19.0**. Equipo de escritorio de esta sesión: Ryzen 9 5900X, RTX 3060 y 32 GB de RAM. La prueba usa CPU; no mide la GPU ni dibuja el juego.
+Medición del **1 de octubre de 2026**, Windows x64, Node **v24.19.0**, Ryzen 9 5900X, RTX 3060 y 32 GB de RAM. Datos completos: [CPU-MEDICION.json](CPU-MEDICION.json) y [RENDER-MEDICION.json](RENDER-MEDICION.json). Los resultados describen este equipo y estas cargas; no garantizan el rendimiento de Safari ni del servidor gratuito de Render.
 
-Para repetirla desde la carpeta del proyecto:
+Para repetir la medición de simulación:
 
 ```sh
 node tests/benchmark.mjs
 ```
 
-El programa ejecuta las reglas reales, con semilla `20261001`, a pasos de 0,1 segundos. Crea dos equipos de 60 unidades, concede presupuesto inicial al escenario de prueba y compra las unidades mediante las órdenes normales. No sustituye el movimiento, la visibilidad, el combate ni las capturas por funciones simuladas. El presupuesto ampliado es una condición del banco de pruebas, no una regla de las partidas normales.
+El programa usa la simulación del juego, semilla `20261001`, pasos de 0,1 s y dos bandos de 60 unidades. El presupuesto ampliado pertenece al escenario de prueba. Las compras, órdenes, navegación, detección, disparos, daños y capturas siguen las reglas reales.
 
-Cada escenario registra **1.000 pasos / 100 segundos de partida**. Mide por separado la simulación y la creación más serialización de cada estado para un cliente. Obtiene dos estados cada 0,2 segundos, equivalentes a 5 actualizaciones por segundo y jugador. Los tiempos de enviar nuevas órdenes se excluyen de la columna de simulación. Los resultados cambian según el equipo y su carga; no son límites garantizados.
+Cada carga dura **1.000 pasos / 100 segundos simulados**. Se miden por separado el paso de simulación y la creación más serialización JSON de cada estado. Se generan dos estados cada 0,2 segundos, equivalentes a 5 actualizaciones por segundo y jugador. El cálculo de nuevas rutas se mide aparte. Los índices de terreno y navegación de cada mapa se preparan al usarlos por primera vez, fuera de los intervalos medidos de paso y estado.
 
-| Escenario | Unidades iniciales / finales | Simulación media / p95 | Estado JSON por cliente, media / p95 |
-| --- | ---: | ---: | ---: |
-| 120 unidades sostenidas, movimiento y visibilidad | 120 / 120 | 0,469 / 1,125 ms | 0,341 / 0,727 ms |
-| Combate con nueve clases | 120 / 9 | 0,255 / 0,985 ms | 0,200 / 0,729 ms |
+## Simulación y estados
 
-El primer escenario usa unidades antiaéreas terrestres: pueden moverse y disputar sectores, pero no se disparan entre sí. Permite mantener 120 unidades reales durante toda la medición y ejercita la visibilidad y los estados grandes. No mide combate sostenido entre 120 unidades.
+| Mapa | Carga | Unidades iniciales / finales | Paso medio / p95 | Estado JSON por cliente, medio / p95 |
+| --- | --- | ---: | ---: | ---: |
+| Valle, 1600 × 1000 | 120 sostenidas | 120 / 120 | 0,261 / 0,699 ms | 0,197 / 0,410 ms |
+| Valle | Combate de nueve clases | 120 / 12 | 0,165 / 0,867 ms | 0,163 / 0,652 ms |
+| Cuenca, 2400 × 1600 | 120 sostenidas | 120 / 120 | 0,369 / 0,874 ms | 0,221 / 0,447 ms |
+| Cuenca | Combate de nueve clases | 120 / 7 | 0,151 / 0,790 ms | 0,136 / 0,508 ms |
+| Frontera, 3200 × 2000 | 120 sostenidas | 120 / 120 | 0,388 / 0,858 ms | 0,226 / 0,425 ms |
+| Frontera | Combate de nueve clases | 120 / 8 | 0,187 / 0,861 ms | 0,160 / 0,480 ms |
 
-El segundo sí mide combate. Registró **479 disparos, 102 explosiones y 111 bajas**; la supresión alcanzó 1. La población media fue de 33,488 unidades. La caída de población explica parte de sus tiempos menores: no debe presentarse como una medición con 120 unidades permanentes.
+La carga sostenida usa antiaéreos terrestres que se mueven, detectan y disputan sectores, pero no se disparan entre sí. Mantiene 120 unidades durante toda la medición. La carga de combate sí incluye pérdidas: registró 491/443/482 disparos, 107/83/90 explosiones y 108/113/112 bajas en los tres mapas. Sus poblaciones medias fueron 35,561/35,797/42,974; no equivale a combate permanente de 120 unidades.
 
-La comprobación adicional de una partida completa dio victoria por agotamiento de puntos al equipo 0, con los tres sectores capturados: **194,1 segundos de partida / 1.941 pasos**, ejecutados en 17,803 ms. Es un escenario de órdenes programadas para validar el final de partida, no una medida de dificultad de la IA ni una partida jugada por una persona. Las pruebas de la IA están en `tests/simulation.test.mjs`.
+Objetivos de regresión en este PC: p95 de paso inferior a **10 ms**, p95 de estado inferior a **10 ms** y p95 de orden de grupo inferior a **100 ms**. Dejan margen dentro del paso de 100 ms del servidor. Todos se cumplieron; el programa informa del resultado sin convertir una máquina lenta en un fallo funcional de las reglas.
 
-## Tamaño de los estados y red
+## Navegación y órdenes de grupo
 
-| Escenario | Estado medio / p95 | Por cliente a 5 Hz, media / p95 |
+Se midieron **24 órdenes por mapa**, cada una con 60 unidades, hacia flancos opuestos. Las órdenes calculan rutas reales para cada posición de la formación y fuerzan desvíos por puentes y canales.
+
+| Mapa | Rutas con desvíos | Orden de 60 unidades, media / p95 / máxima |
 | --- | ---: | ---: |
-| 120 unidades sostenidas | 35.954 / 38.182 bytes | 179.772 / 190.910 bytes/s |
-| Combate con nueve clases | 13.853 / 45.311 bytes | 69.267 / 226.555 bytes/s |
+| Valle | 1.284 de 1.440 | 8,894 / 9,825 / 13,243 ms |
+| Cuenca | 1.284 de 1.440 | 19,393 / 20,799 / 20,822 ms |
+| Frontera | 1.440 de 1.440 | 35,371 / 36,186 / 36,883 ms |
 
-Son tamaños calculados del JSON completo. No incluyen cabeceras WebSocket/TLS, compresión, latencia, pérdidas ni transporte por Internet. El servidor envía un estado diferente a cada jugador para respetar la niebla. En la primera carga, dos clientes requieren aproximadamente 360 kB/s de salida del servidor. Este coste aconseja medir sesiones largas y reducir datos repetidos antes de aumentar mucho el número de jugadores o unidades.
+La primera medición del mapa grande dio **181,366 ms p95** por orden. Se sustituyó la búsqueda lineal de nodos A* por una cola de prioridad y se guardaron las conexiones transitables de cada mapa. El resultado bajó a **36,186 ms p95**, conservando el terreno y las rutas.
 
-## Objetivo para Safari
+La revisión también corrigió dos fallos de navegación: los segmentos suavizados podían cortar una esquina diminuta de un canal, y un destino válido junto a una orilla podía pertenecer a una celda cuyo centro era agua. Ahora se comprueba la intersección completa con el agua y se conectan los extremos exactos a celdas transitables. Hay pruebas de regresión para ambos casos, rutas desde ambas bases a todos los objetivos nuevos y 600 rutas arbitrarias con semilla en mapas alternados.
 
-Objetivo provisional: **30 imágenes por segundo**, con un presupuesto de aproximadamente 33,3 ms por imagen, en horizontal y con controles táctiles.
+## Partidas completas con IA
 
-Dispositivos de referencia propuestos:
+El banco adicional empieza una partida contra la IA en cada mapa, envía las tres tropas iniciales del jugador a sectores distintos y ejecuta la simulación hasta el final. Es una prueba programada de las reglas, no una partida jugada por una persona.
 
-- iPhone 12: A14 y 4 GB de RAM.
-- iPad de 9.ª generación: A13 y 3 GB de RAM.
+| Mapa | Tiempo de partida | Pasos | Tiempo de ejecución | Sectores con propietario al final | Final |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Valle | 203,7 s | 2.037 | 40,985 ms | 3/3 | Victoria de la IA por puntos |
+| Cuenca | 177,0 s | 1.770 | 27,104 ms | 5/5 | Victoria de la IA por puntos |
+| Frontera | 179,1 s | 1.791 | 44,996 ms | 7/7 | Victoria de la IA por puntos |
 
-**No se ha tenido acceso físico a esos dispositivos. No se han medido FPS, temperatura, memoria, batería ni instalación desde Safari en ellos.** Los tiempos de Node en este PC no demuestran ese objetivo de FPS. Tampoco acreditan una partida entre dos dispositivos o dos redes.
+## Tamaño de los estados
 
-Prueba pendiente reproducible en cada dispositivo: versión de iOS/iPadOS registrada, Safari y apertura desde pantalla de inicio, gráficos predeterminados, ahorro de batería desactivado, diez minutos de juego y al menos dos minutos con 120 unidades visibles. Registrar tiempo de imagen medio y p95, memoria disponible, calentamiento, interrupción al cambiar de aplicación y recuperación de conexión. Repetir reduciendo resolución, sombras y vegetación antes de considerar cambios en las reglas.
+| Mapa, 120 unidades sostenidas | Estado medio / p95 | Por cliente a 5 Hz, media / p95 |
+| --- | ---: | ---: |
+| Valle | 40.939 / 43.081 bytes | 204.693 / 215.405 bytes/s |
+| Cuenca | 40.360 / 43.346 bytes | 201.798 / 216.730 bytes/s |
+| Frontera | 39.674 / 43.535 bytes | 198.368 / 217.675 bytes/s |
 
-## Alcance de esta versión
+Son tamaños del JSON completo. No incluyen WebSocket/TLS, compresión, latencia, pérdidas ni transporte por Internet. En Frontera, dos jugadores con esta carga requieren aproximadamente **397 kB/s** de salida. La niebla se filtra por jugador. Conviene medir sesiones largas y estudiar estados incrementales antes de aumentar el límite de unidades o el número de participantes.
 
-La simulación funciona a 10 Hz y está separada del dibujo. El límite provisional sigue en **120 unidades totales**; esta medición no lo ha reducido ni demuestra que sea el máximo posible en un iPhone. Es el tamaño de carga validado para este incremento y debe revisarse con medidas del juego completo en hardware real.
+## Dibujo en el ordenador
 
-Queda pendiente perfilar la representación 3D, los gestos, el trabajo de la IA en partidas largas y la red real. También conviene medir estados compactos o actualizaciones de cambios para bajar el consumo de datos sin revelar unidades ocultas.
+Prueba separada con Edge/Chromium, ventana de 1440 × 900, WebGL mediante la **RTX 3060**. Usa una colocación sintética de 120 unidades reales, todas visibles, y seis segundos de muestreo por mapa. El estado llega a una instancia aislada del navegador para cargar el dibujo; esa sustitución no existe en producción. No mide una partida completa ni combate sostenido.
+
+| Mapa | FPS observados | Intervalo medio / p95 | Llamadas de dibujo | Triángulos |
+| --- | ---: | ---: | ---: | ---: |
+| Valle | 240 | 4,17 / 4,30 ms | 369 | 24.632 |
+| Cuenca | 240 | 4,17 / 4,30 ms | 373 | 36.616 |
+| Frontera | 240 | 4,17 / 4,30 ms | 377 | 45.440 |
+
+Las tres mediciones alcanzaron el límite observado de 240 FPS. Unir las piezas estáticas de cada unidad por material redujo en el mapa grande las llamadas de dibujo de 957 a 377, manteniendo los 45.440 triángulos. También se indexó el terreno y se optimizó el dibujo de la visión. No se eliminó la complejidad táctica para alcanzar estas cifras.
+
+Para repetir esta parte: iniciar el servidor local, disponer de Playwright y Edge, y ejecutar `node tests/render-benchmark.mjs`. `PLAYWRIGHT_MODULE`, `BROWSER_CHANNEL` y `GAME_URL` permiten indicar la instalación y dirección usadas.
+
+## Pendiente en Safari y entre dispositivos
+
+Objetivo móvil provisional: **30 FPS** en horizontal, unos 33,3 ms por imagen. Referencias propuestas: iPhone 12 y iPad de 9.ª generación. **No se ha tenido acceso físico a esos equipos.** No se han medido en ellos FPS, memoria, temperatura, batería, instalación desde Safari ni comportamiento desde la pantalla de inicio.
+
+Quedan pendientes diez minutos de juego en cada dispositivo real, al menos dos con 120 unidades visibles, y pruebas de interrupción y recuperación de conexión entre dos redes. Las pruebas táctiles y de tamaños de pantalla ejecutadas en el ordenador, y los clientes WebSocket locales, no sustituyen esas comprobaciones. El límite se mantiene en **120 unidades totales**; no se ha reducido para estos mapas ni se afirma que sea el máximo posible en un iPhone.
