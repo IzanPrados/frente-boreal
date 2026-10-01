@@ -4,8 +4,9 @@ import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
-import { createGame, stepGame, applyCommand, snapshotFor } from '../shared/sim.mjs';
+import { createGame, snapshotFor } from '../shared/sim.mjs';
 import { validateConfig } from '../shared/config.mjs';
+import { createMatchControl, timeControlSnapshot, pendingOrderCount, setMatchSpeed, submitMatchCommand, advanceMatch } from '../shared/match-control.mjs';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.glb': 'model/gltf-binary', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
@@ -108,13 +109,19 @@ export async function createServer({
   function roomBroadcast(room) { const payload = { type: 'room', room: roomView(room) }; for (const p of room.players) send(p.ws, payload); }
   function stateFor(room, player) {
     return { ...snapshotFor(room.game, player.id), paused: !!room.paused,
+      timeControl: timeControlSnapshot(room.clock), pendingOrders: pendingOrderCount(room.clock, player.id),
       pauseReason: room.paused ? 'Esperando la reconexión de un jugador.' : null,
       reconnectDeadline: room.paused ? Math.min(...room.players.filter(p => !p.ws).map(p => p.disconnectedAt + disconnectGraceMs)) : null };
   }
   function broadcastState(room) { if (room.game) for (const p of room.players) if (p.ws) send(p.ws, { type: 'state', state: stateFor(room, p) }); }
   function setPaused(room) {
     const paused = room.status === 'playing' && room.players.some(p => !p.ws);
-    if (paused !== room.paused) { room.paused = paused; roomBroadcast(room); broadcastState(room); }
+    if (paused !== room.paused) {
+      room.paused = paused;
+      room.lastStepAt = performance.now();
+      if (room.clock) room.clock.accumulator = 0;
+      roomBroadcast(room); broadcastState(room);
+    }
   }
   function endRoom(room, message) {
     rooms.delete(room.code);
@@ -250,9 +257,19 @@ export async function createServer({
       if (room.mode === 'versus' && new Set(room.players.map(p => p.team)).size !== 2) { fail(ws, 'Elegid equipos diferentes para el duelo.'); return; }
       room.game = createGame({ mode: room.mode, players: room.players.map(({id, name, team, deck}) => ({id, name, team, deck})), config: room.config, seed: randomBytes(4).readUInt32LE(), ...(duration ? { duration } : {}) });
       room.config = room.game.config;
+      room.clock = createMatchControl(room.game);
+      room.lastStepAt = performance.now();
       room.status = 'playing';
       room.paused = false;
       roomBroadcast(room);
+      broadcastState(room);
+      return;
+    }
+    if (message.type === 'time') {
+      if (room.status !== 'playing') { fail(ws, 'La partida no está en curso.'); return; }
+      const result = setMatchSpeed(room.game, room.clock, player.id, message.speed);
+      if (!result.ok) { fail(ws, result.error); return; }
+      room.lastStepAt = performance.now();
       broadcastState(room);
       return;
     }
@@ -265,8 +282,8 @@ export async function createServer({
       if (room.status !== 'playing') result = { ok: false, error: 'La partida no está en curso.' };
       else if (room.paused) result = { ok: false, error: 'Partida en pausa: espera la reconexión.' };
       else if (!message.command || typeof message.command !== 'object' || Array.isArray(message.command)) result = { ok: false, error: 'Orden no válida.' };
-      else result = applyCommand(room.game, player.id, message.command);
-      const ack = { type: 'ack', seq, ok: result?.ok === true, ...(result?.error ? { error: String(result.error) } : {}) };
+      else result = submitMatchCommand(room.game, room.clock, player.id, message.command, seq);
+      const ack = { type: 'ack', seq, ok: result?.ok === true, ...(result?.queued ? { queued: true } : {}), ...(result?.error ? { error: String(result.error) } : {}) };
       player.lastSeq = seq;
       player.commandAcks.set(seq, ack);
       while (player.commandAcks.size > 256) player.commandAcks.delete(player.commandAcks.keys().next().value);
@@ -312,8 +329,19 @@ export async function createServer({
         if (!room.players.length) { rooms.delete(room.code); continue; }
         if (expired.length) roomBroadcast(room);
         if (room.status !== 'playing' && now - room.lastActive > idleRoomMs) { endRoom(room, 'Sala cerrada por inactividad.'); continue; }
-        if (room.status === 'playing' && !room.paused) {
-          stepGame(room.game, tickMs / 1000);
+        if (room.status === 'playing') {
+          const stepAt = performance.now();
+          const elapsed = (stepAt - room.lastStepAt) / 1000;
+          room.lastStepAt = stepAt;
+          const advanced = advanceMatch(room.game, room.clock, elapsed, { suspended: room.paused });
+          for (const result of advanced.results) {
+            const player = room.players.find(value => value.id === result.playerId);
+            if (!player) continue;
+            const ack = { type: 'ack', seq: result.seq, ok: result.ok, queued: false, ...(result.error ? { error: result.error } : {}) };
+            player.commandAcks.set(result.seq, ack);
+            while (player.commandAcks.size > 256) player.commandAcks.delete(player.commandAcks.keys().next().value);
+            send(player.ws, { ...ack, type: 'commandResult' });
+          }
           room.lastActive = now;
           if (room.game.status === 'finished') { room.status = 'finished'; roomBroadcast(room); broadcastState(room); }
         }
