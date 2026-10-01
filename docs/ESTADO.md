@@ -1,66 +1,69 @@
-# Estado de Frente Boreal
+# Estado de Frente Boreal 0.2
 
-1 de octubre de 2026 · Prototipo jugable 0.1
+Actualización del juego existente · 1 de octubre de 2026
 
-**Juego:** https://frente-boreal.onrender.com
+**Juego:** https://frente-boreal.onrender.com · **Código:** https://github.com/IzanPrados/frente-boreal
 
-**Código:** https://github.com/IzanPrados/frente-boreal
+## Cambios
 
-Es un incremento funcional; todavía no completa la profundidad, los gráficos ni las pruebas físicas del objetivo final.
+### Campo de batalla y controles
 
-## Construido
+- Barra superior compacta con puntos, objetivos, recursos y tiempo. Refuerzos, minimapa, grupos y acciones detalladas se abren de uno en uno.
+- Sin selección no aparece la franja de órdenes. Al seleccionar se muestran resumen, Mover, Alto y acceso a más acciones. Las estadísticas se consultan bajo demanda.
+- La franja se oculta al elegir destino. Un botón de 44 px permite cancelar la orden pendiente con el dedo; cerrar paneles no envía órdenes al mapa.
+- Distribución específica para teléfono horizontal y vertical, tableta y escritorio, con bordes seguros y altura dinámica. La aplicación instalada permite ambas orientaciones.
+- Minimapa plegable, cámara y vista general adaptados al escenario. Avisos breves de 3,2 segundos; información persistente solo cuando exige actuar.
 
-- Juego original en español con terreno y unidades 3D de pocos polígonos, cámara, zoom, selección múltiple, grupos y órdenes explícitas.
-- Mapa Valle de la Bruma: tres sectores, río con pasos transitables, carreteras, bosque y poblaciones. Movimiento, cobertura y obstrucción de visión afectan al combate.
-- Nueve clases: infantería, carro, transporte con embarque/desembarque, reconocimiento, logística, artillería, antiaéreos, helicópteros y aviones. Estadísticas propias.
-- Tres grupos de combate predefinidos, presupuesto, refuerzos, ingresos, captura, puntos, tiempo límite y rendición. Munición, suministro finito, reparación, supresión y humo.
-- IA por lógica de juego: despliega, disputa objetivos, cambia prioridades y solo reacciona a enemigos detectados.
-- Individual en un trabajador del navegador; cooperativo y duelo con autoridad única del servidor. Simulación a 10 Hz, instantáneas filtradas por visión a 5 Hz. Cada persona dirige únicamente sus unidades.
-- Sala por código/invitación, equipos, preparación e inicio. Reconexión con credencial y secuencias sin doble gasto; pausa hasta 90 segundos y cierre explícito si no se recupera.
-- PWA con iconos, apertura independiente, ajustes y grupo de combate locales, descarga íntegra y actualización solicitada. Individual offline tras descargar los recursos.
-- Módulos separados de simulación/datos, representación, controles, interfaz y red; Git local y repositorio público. Sin API de IA ni servicios de pago en el juego.
+### Movimiento y combate
 
-## Publicación real
+- Mover y Avanzar y atacar comprueban blancos cada 0,2 s. Un enemigo detectado, compatible, dentro de alcance y con tiro válido interrumpe la ruta; la unidad conserva destino y camino.
+- Mantiene el blanco válido actual; al buscar otro prioriza cercanía con preferencia por exploradores y menor prioridad para logística; usa el identificador para desempatar. No persigue blancos fuera del alcance.
+- Tras perder objetivos, una espera máxima de 0,65 s evita alternancias rápidas y permite reanudar la ruta. Sin munición o capacidad de ataque continúa su función.
+- Mover de nuevo, fuego dirigido, reabastecer y Alto sustituyen la orden anterior. Alto borra el destino; humo conserva la ruta como habilidad.
+- La misma simulación ejecuta el modo individual y el servidor multijugador. El servidor transmite pausa de combate, ataques y reanudación.
 
-Render confirmó **Deploy succeeded / Live** el 1 de octubre a las **20:06:41 UTC / 22:06:41 Madrid**. Se comprobaron también salud, interfaz y partidas mediante la URL pública.
+### Preparación y economía
 
-- Free: **0 €/mes, 0,1 CPU, 512 MB; Frankfurt**. Node 22.23.3.
-- Servicio: `srv-davbqanlk1mc739fck3g`; primer despliegue: `dep-davbqbflk1mc739fcmn0`.
-- Código ejecutado: `38e3e5092c39bbf98a5fd8aa4a212d904ac967be`.
-- Cliente HTTPS y servidor WSS comparten origen. No se añadió tarjeta ni se activó facturación, prueba, base de datos o disco de pago. No se cambió el cortafuegos ni se expuso el ordenador.
-- El ordenador puede apagarse: Render ejecuta el servidor. El servidor de desarrollo solo escucha en 127.0.0.1.
-- Se registró inicialmente un Site, pero no se publicó. El destino activo es Render. `.openai/hosting.json` conserva esa referencia de trabajo y no acredita otro despliegue.
+- Pantalla previa con recursos iniciales 0–10000; ingresos 0,5×/1×/2×/3×/5×; límite total 24–120 unidades; 3–60 minutos; 100–2000 puntos; escenario y tamaño.
+- Valores iniciales: Valle de la Bruma, 410 recursos, 1×, 120 unidades, 12 minutos y 300 puntos. Restauración y último ajuste guardado localmente.
+- Cada humano y la IA reciben el saldo inicial y su fuerza de partida. El multiplicador se aplica una sola vez a los 6 recursos por segundo. No modifica saldo inicial ni precios. Los objetivos reducen puntos enemigos, no conceden dinero.
+- El anfitrión modifica la configuración; todos la ven antes de prepararse. Cambiarla desmarca a todos y aumenta la revisión. El servidor rechaza una preparación sobre ajustes antiguos y bloquea cambios tras empezar.
 
-## Probado realmente
+### Mapas y navegación
 
-**25/25 pruebas Node pasaron:** 15 de simulación y 10 de servidor/red. Cubren combate, órdenes, presupuesto, propiedad, terreno y rutas, visión/humo, IA sin conocimiento oculto, captura, logística, transporte, artillería, AA, determinismo, victoria/rendición, dos clientes TCP/WebSocket, reconexión, confirmación perdida sin doble gasto, expiración y archivos PWA.
+| Escenario | Dimensiones | Objetivos | Áreas funcionales |
+|---|---|---:|---:|
+| Valle de la Bruma | 1600 × 1000 | 3 | 18 |
+| Cuenca del Norte | 2400 × 1600 | 5 | 32 |
+| Frontera de los Siete Pasos | 3200 × 2000 | 7 | 62 |
 
-**5/5 comprobaciones de navegador pasaron localmente y contra la publicación real:**
+El mapa grande tiene cuatro veces la superficie original, cinco cruces del río, canales laterales, varias poblaciones, bosques y circuitos de carreteras. Los nuevos escenarios tienen simetría de terreno y aproximaciones equivalentes para ambos bandos. Carreteras, agua, bosque y población afectan realmente a movimiento, cobertura y visibilidad. Las casas individuales siguen siendo representación de una zona urbana, sin colisión propia; no hay elevación funcional.
 
-1. Duelo en dos contextos aislados: crear/unir/preparar/iniciar, movimiento real, estado coherente, recarga con identidad conservada y final por rendición.
-2. Cooperativo: mismas operaciones, ocho unidades aliadas coherentes, retirada como espectador y salida explícita de sala.
-3. Teléfono 844 × 390 emulado: arrastre, pellizco, selección y grupos sin recortes ni órdenes accidentales.
-4. Tableta 1024 × 768 emulada: mismas comprobaciones.
-5. PWA pública: 18 archivos guardados, bloqueo de red del contexto, recarga y partida individual hasta tick 31; cero excepciones de página.
+Se corrigieron rutas que rozaban esquinas de agua y destinos válidos de orillas o puentes cuyo centro de celda caía en agua. Cada partida tiene su mapa; los índices compartidos son inmutables y no mezclan salas.
 
-Navegador: Edge/Chromium 154.0.4258.37, contextos sin perfiles personales; GPU identificada RTX 3060 mediante ANGLE/D3D11. El primer intento offline descubrió licencias `.txt` con 404: se corrigió, se añadió regresión y se repitió con éxito. Detalles y capturas: [PRUEBAS-NAVEGADOR.md](PRUEBAS-NAVEGADOR.md).
+## Pruebas ejecutadas
 
-**Dos contextos de este PC conectados al servidor público no equivalen a dos dispositivos físicos ni a redes distintas.** Gestos y desconexión son emulados; no se probaron Safari ni modo avión físico.
+- **49/49 pruebas Node:** 27 de simulación y movimiento, 9 de mapas/configuración y 13 de servidor/red. Movimiento normal/grupos, detenerse/disparar/reanudar, objetivos ocultos/fuera de alcance, cambios de órdenes, munición, compatibilidad, logística, artillería, transporte, captura, IA, economía, propiedad, reconexión y caché.
+- **Dos clientes TCP/WebSocket reales locales:** ajustes compartidos, preparación invalidada, bloqueo al iniciar, precios e ingresos coherentes y grupo que se detiene, combate y reanuda con estados idénticos.
+- **7/7 comprobaciones de navegador locales:** duelo, cooperativo, teléfono horizontal 844 × 390, teléfono vertical 390 × 844, tableta 1024 × 768, cambio de tres mapas sin recargar y funcionamiento sin conexión. Controles de al menos 44 px y 89–95 % de los puntos muestreados libres de controles durante la observación inicial.
+- Cancelación táctil de movimiento y despliegue, selección/grupos, pan/pellizco, apertura y cierre de paneles sin órdenes fantasma, conservación de identidad al recargar y final de ambos modos online.
+- PWA: 20 recursos, incluidos mapas y configuración; recarga con red bloqueada y partida individual hasta tick 31.
+- **3000 rutas de comprobación:** ninguna vacía. Rutas reales desde ambas bases a todos los objetivos nuevos sin entrar en agua. Partidas completas de IA en los dos escenarios nuevos, contra un jugador inactivo: victorias por puntos a 142,7 y 169,9 s; capturas de 5/5 y 6/7 objetivos.
 
-**Rendimiento CPU:** carga sostenida de 120 unidades: simulación media 0,469 ms / p95 1,125 ms; estado por cliente media 0,341 ms / p95 0,727 ms. Combate con bajas medido aparte y victoria territorial comprobada tras 194,1 segundos simulados. La primera inspección gráfica mostró aproximadamente 148 FPS con fuerzas iniciales: muestra corta de escritorio, no estabilidad ni rendimiento móvil. [Condiciones](RENDIMIENTO.md).
+Las pruebas de navegador usan Edge/Chromium en Windows con contextos aislados y gestos emulados. Los escenarios programados de simulación prueban reglas reales, pero no equivalen a partidas humanas. El informe cronológico está en [PRUEBAS-NAVEGADOR.md](PRUEBAS-NAVEGADOR.md).
 
-## Límites y pendientes
+## Rendimiento
 
-- Instalación desde Inicio, orientación, cambios de aplicación, latencia y desconexión física en iPhone/iPad. Falta una partida en dos dispositivos y redes distintas.
-- Objetivo provisional: 30 FPS durante doce minutos en iPhone 12 e iPad de 9.ª generación con iOS/iPadOS 16.4 o posterior. Aún sin medición física.
-- Gráficos provisionales; terreno plano, sin elevación, sonido ni animaciones finales. Poblaciones dan cobertura/obstrucción; las fachadas individuales no tienen colisión propia.
-- Aviones con movimiento/parada simplificados; faltan pasadas y salida/reentrada. Equilibrio pendiente de partidas humanas prolongadas. Ejércitos predefinidos, sin editor detallado de divisiones.
-- Instantáneas JSON completas: unos 180 kB/s por cliente a 120 unidades en el banco de pruebas. Compactar antes de ampliar concurrencia.
-- Límites de protección: 120 unidades, ocho salas, 32 conexiones; no garantizan todas esas salas simultáneas en Free.
-- Salas en memoria: un reinicio/suspensión del servidor pierde la partida. Reconexión breve solo mientras vive el proceso.
-- Render comparte 750 horas mensuales por workspace, duerme por inactividad y puede tardar unos 50–60 segundos en despertar. Tiene cuotas y puede reiniciar/suspender el servicio. [Fuentes y límites gratuitos](INVESTIGACION.md).
+Con 120 unidades sostenidas en el mapa grande, el p95 de simulación fue 0,858 ms; generar y serializar el estado, 0,425 ms por cliente. La búsqueda de rutas de un grupo de 60 pasó de 181,4 a 36,2 ms p95 mediante índice espacial, enlaces de navegación y cola de prioridad.
 
-## Siguiente paso
+La geometría fija de cada unidad se agrupa por material. En una colocación controlada de 120 unidades, el mapa grande conservó sus 45440 triángulos y pasó de 957 a 377 llamadas de dibujo. La muestra de seis segundos a 1440 × 900 dio 240 FPS limitados por pantalla en RTX 3060; no demuestra rendimiento móvil ni estabilidad durante una partida larga. Condiciones y datos: [RENDIMIENTO.md](RENDIMIENTO.md).
 
-Jugar la URL publicada desde Safari en dispositivos físicos, completar una partida con un amigo desde otra red y registrar FPS, temperatura y recuperación de conexión. Ajustar gráficos y tráfico según esas medidas; después ampliar terreno, aviación y configuración del ejército.
+## Publicación y límites
 
+Se conserva el servicio Render existente, identificado como Free. No se añadió tarjeta, suscripción, servicio de pago ni apertura de red del ordenador. El servidor local escucha solo en 127.0.0.1. El código de la actualización se publica en el repositorio existente y requiere desplegarlo en Render.
+
+- Pendiente de verificar físicamente: Safari en iPhone/iPad, pantalla de inicio, bordes seguros reales, orientación, cambios de aplicación, temperatura y FPS durante una partida completa.
+- Dos contextos del mismo PC, aunque conecten al servidor público, no equivalen a dos dispositivos o redes distintas. Falta esa prueba física.
+- El servidor gratuito puede dormir, tardar en despertar o reiniciarse. Las salas viven en memoria; un reinicio las pierde. Se conservan pausa y reconexión de hasta 90 s mientras vive el proceso.
+- Los límites de ocho salas y 32 conexiones son protecciones, no capacidad simultánea comprobada en la instancia Free. Se mantienen estados JSON completos; falta medir tráfico y latencia sostenidos en móviles.
+- Gráficos sencillos, terreno plano y aviación de movimiento/parada simplificado. Balance humano de mapas nuevos pendiente; estas limitaciones existentes no se presentan como funciones terminadas.
