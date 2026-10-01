@@ -1,81 +1,93 @@
-# Rendimiento: tres mapas y 120 unidades
+# Rendimiento: cuatro mapas, edificios y 120 unidades
 
-## Alcance de la medición
+## Alcance de la medición de CPU
 
-Medición del **1 de octubre de 2026**, Windows x64, Node **v24.19.0**, Ryzen 9 5900X, RTX 3060 y 32 GB de RAM. Datos completos: [CPU-MEDICION.json](CPU-MEDICION.json) y [RENDER-MEDICION.json](RENDER-MEDICION.json). Los resultados describen este equipo y estas cargas; no garantizan el rendimiento de Safari ni del servidor gratuito de Render.
+Medición del **1 de octubre de 2026**, Windows x64, Node **v24.19.0**, Ryzen 9 5900X, RTX 3060 y 32 GB de RAM. Resultados completos: [CPU-MEDICION.json](CPU-MEDICION.json). Describe este equipo y estas cargas; no garantiza el rendimiento de Safari ni del servidor gratuito de Render.
 
-Para repetir la medición de simulación:
+Para repetirla desde la carpeta del proyecto:
 
 ```sh
 node tests/benchmark.mjs
 ```
 
-El programa usa la simulación del juego, semilla `20261001`, pasos de 0,1 s y dos bandos de 60 unidades. El presupuesto ampliado pertenece al escenario de prueba. Las compras, órdenes, navegación, detección, disparos, daños y capturas siguen las reglas reales.
+El programa usa las reglas del juego, semilla `20261001`, pasos de 0,1 s y dos bandos de 60 unidades. El presupuesto ampliado pertenece al escenario de prueba. Las compras, órdenes, rutas, detección, disparos, daños y capturas usan la implementación real.
 
-Cada carga dura **1.000 pasos / 100 segundos simulados**. Se miden por separado el paso de simulación y la creación más serialización JSON de cada estado. Se generan dos estados cada 0,2 segundos, equivalentes a 5 actualizaciones por segundo y jugador. El cálculo de nuevas rutas se mide aparte. Los índices de terreno y navegación de cada mapa se preparan al usarlos por primera vez, fuera de los intervalos medidos de paso y estado.
+Cada carga dura **1.000 pasos / 100 segundos simulados**. Se miden por separado el paso de simulación y la creación más serialización JSON de cada estado. Se generan dos estados cada 0,2 segundos: 5 actualizaciones por segundo y jugador. El cálculo de órdenes y rutas se mide aparte. Los índices de terreno y navegación se preparan al usarlos por primera vez, fuera de los intervalos medidos de paso y estado.
+
+El mapa nuevo **Estuario mide 4800 × 3000**, frente a **3200 × 2000** de Frontera: 14,4 frente a 6,4 millones de unidades cuadradas, **2,25 veces la superficie**. Las cargas incluyen 6/14/28/96 edificios sólidos en Valle, Cuenca, Frontera y Estuario, además de vegetación aislada, arboledas y bosque denso. No se redujo el límite de 120 unidades.
 
 ## Simulación y estados
 
 | Mapa | Carga | Unidades iniciales / finales | Paso medio / p95 | Estado JSON por cliente, medio / p95 |
 | --- | --- | ---: | ---: | ---: |
-| Valle, 1600 × 1000 | 120 sostenidas | 120 / 120 | 0,261 / 0,699 ms | 0,197 / 0,410 ms |
-| Valle | Combate de nueve clases | 120 / 12 | 0,165 / 0,867 ms | 0,163 / 0,652 ms |
-| Cuenca, 2400 × 1600 | 120 sostenidas | 120 / 120 | 0,369 / 0,874 ms | 0,221 / 0,447 ms |
-| Cuenca | Combate de nueve clases | 120 / 7 | 0,151 / 0,790 ms | 0,136 / 0,508 ms |
-| Frontera, 3200 × 2000 | 120 sostenidas | 120 / 120 | 0,388 / 0,858 ms | 0,226 / 0,425 ms |
-| Frontera | Combate de nueve clases | 120 / 8 | 0,187 / 0,861 ms | 0,160 / 0,480 ms |
+| Valle | 120 sostenidas | 120 / 120 | 0,493 / 0,738 ms | 0,334 / 0,484 ms |
+| Valle | Combate de nueve clases | 120 / 4 | 0,224 / 0,917 ms | 0,207 / 0,791 ms |
+| Cuenca | 120 sostenidas | 120 / 120 | 0,501 / 0,901 ms | 0,309 / 0,474 ms |
+| Cuenca | Combate de nueve clases | 120 / 5 | 0,195 / 0,868 ms | 0,188 / 0,625 ms |
+| Frontera | 120 sostenidas | 120 / 120 | 0,471 / 0,875 ms | 0,314 / 0,477 ms |
+| Frontera | Combate de nueve clases | 120 / 8 | 0,232 / 0,891 ms | 0,212 / 0,616 ms |
+| Estuario | 120 sostenidas | 120 / 120 | 0,52 / 0,893 ms | 0,383 / 0,574 ms |
+| Estuario | Combate de nueve clases | 120 / 15 | 0,309 / 0,897 ms | 0,292 / 0,654 ms |
 
-La carga sostenida usa antiaéreos terrestres que se mueven, detectan y disputan sectores, pero no se disparan entre sí. Mantiene 120 unidades durante toda la medición. La carga de combate sí incluye pérdidas: registró 491/443/482 disparos, 107/83/90 explosiones y 108/113/112 bajas en los tres mapas. Sus poblaciones medias fueron 35,561/35,797/42,974; no equivale a combate permanente de 120 unidades.
+La carga sostenida usa antiaéreos terrestres que se mueven, detectan y disputan sectores sin dispararse entre sí. Mantiene 120 unidades. La carga de combate sí pierde unidades: registró 481/482/520/504 disparos, 125/110/95/72 explosiones y 116/115/112/105 bajas en los cuatro mapas. Sus poblaciones medias fueron 33,269/37,178/44,234/56,063; no equivale a combate permanente de 120 unidades.
 
-Objetivos de regresión en este PC: p95 de paso inferior a **10 ms**, p95 de estado inferior a **10 ms** y p95 de orden de grupo inferior a **100 ms**. Dejan margen dentro del paso de 100 ms del servidor. Todos se cumplieron; el programa informa del resultado sin convertir una máquina lenta en un fallo funcional de las reglas.
+Objetivos de regresión en este PC: p95 de paso inferior a **10 ms**, p95 de estado inferior a **10 ms** y p95 de orden de grupo inferior a **100 ms**. Todos se cumplieron. Son presupuestos de escritorio que dejan margen dentro del paso de 100 ms del servidor; el banco informa del resultado sin convertir una máquina lenta en un fallo funcional de las reglas.
 
 ## Navegación y órdenes de grupo
 
-Se midieron **24 órdenes por mapa**, cada una con 60 unidades, hacia flancos opuestos. Las órdenes calculan rutas reales para cada posición de la formación y fuerzan desvíos por puentes y canales.
+Se miden **24 órdenes por mapa**, cada una con 60 unidades, hacia flancos opuestos. Cada orden calcula las rutas de la formación y obliga a sortear agua y edificios. Las variantes se repiten, por lo que la media incluye el beneficio de la caché; se indica también la primera orden.
 
-| Mapa | Rutas con desvíos | Orden de 60 unidades, media / p95 / máxima |
-| --- | ---: | ---: |
-| Valle | 1.284 de 1.440 | 8,894 / 9,825 / 13,243 ms |
-| Cuenca | 1.284 de 1.440 | 19,393 / 20,799 / 20,822 ms |
-| Frontera | 1.440 de 1.440 | 35,371 / 36,186 / 36,883 ms |
+| Mapa | Rutas con desvíos | Primera orden | Orden de 60 unidades, media / p95 / máxima |
+| --- | ---: | ---: | ---: |
+| Valle | 1332 de 1.440 | 5,178 ms | 2,101 / 5,81 / 6,389 ms |
+| Cuenca | 1368 de 1.440 | 12,559 ms | 4,538 / 14,029 / 14,391 ms |
+| Frontera | 1440 de 1.440 | 21,348 ms | 6,753 / 21,096 / 21,348 ms |
+| Estuario | 1440 de 1.440 | 50,84 ms | 14,563 / 50,84 / 52,791 ms |
 
-La primera medición del mapa grande dio **181,366 ms p95** por orden. Se sustituyó la búsqueda lineal de nodos A* por una cola de prioridad y se guardaron las conexiones transitables de cada mapa. El resultado bajó a **36,186 ms p95**, conservando el terreno y las rutas.
+Se conservan la cola de prioridad A* y las conexiones transitables precalculadas. Para el mapa nuevo se añadió una caché acotada a **1.024 rutas por mapa**, basada en celdas inmutables. Los conectores al punto exacto y cada segmento suavizado se vuelven a comprobar; las rutas mutables de las unidades no se comparten. Una prueba verifica que una ruta guardada por otra sala no cambie el resultado de una orden posterior.
 
-La revisión también corrigió dos fallos de navegación: los segmentos suavizados podían cortar una esquina diminuta de un canal, y un destino válido junto a una orilla podía pertenecer a una celda cuyo centro era agua. Ahora se comprueba la intersección completa con el agua y se conectan los extremos exactos a celdas transitables. Hay pruebas de regresión para ambos casos, rutas desde ambas bases a todos los objetivos nuevos y 600 rutas arbitrarias con semilla en mapas alternados.
+En la primera medición de esta revisión, Estuario alcanzó **89,035 ms p95** por orden; con la caché pasó a **50,840 ms**. El filtro de alcance evita comprobar rayos de disparo para objetivos demasiado lejanos. Los edificios se consultan mediante un índice espacial; se calcula la altura de los rayos respecto a sus volúmenes. La vegetación usa zonas con densidad y muestreo limitado, sin simulación de hojas.
+
+Las pruebas cubren esquinas de canales, orillas, puentes, obstáculos sólidos y puntos exactos de entrada. Incluyen todos los objetivos desde ambas bases, todas las puertas y 800 rutas arbitrarias por semilla entre los cuatro mapas. No se sustituyeron obstáculos por decoración para mejorar las cifras.
 
 ## Partidas completas con IA
 
-El banco adicional empieza una partida contra la IA en cada mapa, envía las tres tropas iniciales del jugador a sectores distintos y ejecuta la simulación hasta el final. Es una prueba programada de las reglas, no una partida jugada por una persona.
+El banco inicia una partida contra la IA en cada mapa y envía las tres tropas iniciales del jugador a sectores distintos. Después ejecuta hasta el final. Es una prueba programada de las reglas, no una partida humana. En las cuatro partidas ganó la IA por puntos.
 
-| Mapa | Tiempo de partida | Pasos | Tiempo de ejecución | Sectores con propietario al final | Final |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Valle | 203,7 s | 2.037 | 40,985 ms | 3/3 | Victoria de la IA por puntos |
-| Cuenca | 177,0 s | 1.770 | 27,104 ms | 5/5 | Victoria de la IA por puntos |
-| Frontera | 179,1 s | 1.791 | 44,996 ms | 7/7 | Victoria de la IA por puntos |
+| Mapa | Tiempo de partida | Tiempo de ejecución | Sectores con propietario al final | Entradas reales en edificios |
+| --- | ---: | ---: | ---: | ---: |
+| Valle | 201,7 s | 61,331 ms | 3/3 | 2 |
+| Cuenca | 179,7 s | 48,186 ms | 5/5 | 3 |
+| Frontera | 204,7 s | 60,08 ms | 7/7 | 5 |
+| Estuario | 215 s | 65,525 ms | 7/9 | 6 |
+
+En Estuario hubo un máximo simultáneo de tres ocupantes. El banco registra entradas efectivas después del desplazamiento hasta una puerta; no cuenta las reservas como ocupación. Las pruebas específicas verifican protección, conservación de salud/munición/supresión, salidas, ventanas, bloqueo por otras paredes y ocultación de ocupantes enemigos.
 
 ## Tamaño de los estados
 
 | Mapa, 120 unidades sostenidas | Estado medio / p95 | Por cliente a 5 Hz, media / p95 |
 | --- | ---: | ---: |
-| Valle | 40.939 / 43.081 bytes | 204.693 / 215.405 bytes/s |
-| Cuenca | 40.360 / 43.346 bytes | 201.798 / 216.730 bytes/s |
-| Frontera | 39.674 / 43.535 bytes | 198.368 / 217.675 bytes/s |
+| Valle | 46.785 / 49.175 bytes | 233.925 / 245.875 bytes/s |
+| Cuenca | 47.219 / 50.548 bytes | 236.095 / 252.740 bytes/s |
+| Frontera | 48.417 / 52.747 bytes | 242.087 / 263.735 bytes/s |
+| Estuario | 56.177 / 62.674 bytes | 280.886 / 313.370 bytes/s |
 
-Son tamaños del JSON completo. No incluyen WebSocket/TLS, compresión, latencia, pérdidas ni transporte por Internet. En Frontera, dos jugadores con esta carga requieren aproximadamente **397 kB/s** de salida. La niebla se filtra por jugador. Conviene medir sesiones largas y estudiar estados incrementales antes de aumentar el límite de unidades o el número de participantes.
+Son tamaños del JSON completo, con el estado de edificios filtrado por niebla. Excluyen WebSocket/TLS, compresión, latencia, pérdidas y transporte por Internet. En Estuario, dos jugadores con esta carga suponen aproximadamente **562 kB/s** de salida. Conviene medir sesiones largas y estudiar estados incrementales antes de ampliar participantes o unidades.
 
 ## Dibujo en el ordenador
 
-Prueba separada con Edge/Chromium, ventana de 1440 × 900, WebGL mediante la **RTX 3060**. Usa una colocación sintética de 120 unidades reales, todas visibles, y seis segundos de muestreo por mapa. El estado llega a una instancia aislada del navegador para cargar el dibujo; esa sustitución no existe en producción. No mide una partida completa ni combate sostenido.
+Medición separada con Edge/Chromium, ventana de 1440 × 900 y WebGL mediante la **RTX 3060**. Colocación sintética de 120 unidades reales, todas visibles, durante seis segundos por mapa. El estado sustituido se inyecta solo en un contexto de prueba aislado; esa función no existe en producción. No mide una partida completa ni combate sostenido. Datos: [RENDER-MEDICION.json](RENDER-MEDICION.json).
 
 | Mapa | FPS observados | Intervalo medio / p95 | Llamadas de dibujo | Triángulos |
 | --- | ---: | ---: | ---: | ---: |
-| Valle | 240 | 4,17 / 4,30 ms | 369 | 24.632 |
-| Cuenca | 240 | 4,17 / 4,30 ms | 373 | 36.616 |
-| Frontera | 240 | 4,17 / 4,30 ms | 377 | 45.440 |
+| Valle | 236 | 4,23 / 4,30 ms | 372 | 37.952 |
+| Cuenca | 235 | 4,25 / 4,30 ms | 376 | 69.238 |
+| Frontera | 235 | 4,25 / 4,30 ms | 380 | 88.552 |
+| Estuario | 235 | 4,25 / 4,30 ms | 386 | 150.334 |
 
-Las tres mediciones alcanzaron el límite observado de 240 FPS. Unir las piezas estáticas de cada unidad por material redujo en el mapa grande las llamadas de dibujo de 957 a 377, manteniendo los 45.440 triángulos. También se indexó el terreno y se optimizó el dibujo de la visión. No se eliminó la complejidad táctica para alcanzar estas cifras.
+Los árboles comparten geometría mediante instancias. Suelo, edificios y partes fijas de las unidades se agrupan por material. La niebla se actualiza cada 700 ms con una cuadrícula de 8 unidades y 96 rayos por observador o ventana. Es una aproximación visual del terreno visible; el servidor decide la detección exacta y nunca envía enemigos ocultos. No se quitaron edificios ni vegetación funcional para obtener estos resultados.
 
-Para repetir esta parte: iniciar el servidor local, disponer de Playwright y Edge, y ejecutar `node tests/render-benchmark.mjs`. `PLAYWRIGHT_MODULE`, `BROWSER_CHANNEL` y `GAME_URL` permiten indicar la instalación y dirección usadas.
+Repetición: iniciar el servidor, disponer de Playwright y Edge, y ejecutar `node tests/render-benchmark.mjs`. `PLAYWRIGHT_MODULE`, `BROWSER_CHANNEL` y `GAME_URL` indican la instalación y dirección usadas. Estas cifras de escritorio no acreditan 235 FPS en un teléfono.
 
 ## Pendiente en Safari y entre dispositivos
 
