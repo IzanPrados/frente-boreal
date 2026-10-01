@@ -8,7 +8,7 @@ Publicación real en Render Free, Frankfurt. No hace falta dejar encendido tu or
 
 En el ordenador de esta entrega también puedes abrir `Iniciar-juego.cmd`: usa Node ya disponible y escucha solo en este equipo. Si arrancas desde una copia nueva, instala primero las dependencias como se indica debajo.
 
-La primera entrega no equivale al objetivo final. El registro de lo implementado, las pruebas reales y los límites está en [docs/ESTADO.md](docs/ESTADO.md). La investigación de Safari y alojamiento gratuito está en [docs/INVESTIGACION.md](docs/INVESTIGACION.md).
+La versión 0.2 incorpora interfaz contextual, combate automático durante el movimiento, ajustes de partida compartidos y tres tamaños de mapa. El registro de lo implementado, las pruebas reales y los límites está en [docs/ESTADO.md](docs/ESTADO.md). La investigación de Safari y alojamiento gratuito está en [docs/INVESTIGACION.md](docs/INVESTIGACION.md).
 
 ## Ejecutar en tu ordenador
 
@@ -28,24 +28,38 @@ Si utilizas pnpm, el proyecto incluye `pnpm-lock.yaml`: puedes instalar con `pnp
 
 ## Jugar
 
-- **Individual:** «Jugar contra la IA». La simulación se ejecuta en un trabajador del navegador; después de guardar correctamente la PWA, este modo puede abrirse sin conexión.
+- **Individual:** «Jugar contra la IA», configura la operación y comienza. La simulación se ejecuta en un trabajador del navegador; después de guardar correctamente la PWA, este modo puede abrirse sin conexión.
 - **Cooperativo:** crea «Cooperativo vs. IA», comparte la invitación o el código y espera al segundo jugador. Ambos controláis vuestro ejército dentro del mismo equipo.
 - **Uno contra uno:** crea la sala, comparte el código, asigna equipos opuestos y marca la preparación antes de iniciar.
-- **Victoria:** disputa los tres sectores. La mayoría territorial reduce los puntos del adversario. La partida termina al agotar sus puntos o al alcanzar el tiempo límite.
+- **Victoria:** disputa los objetivos del escenario. La ventaja territorial reduce los puntos del adversario. La partida termina al agotar sus puntos o al alcanzar el tiempo límite.
+
+### Ajustes y mapas
+
+Antes de iniciar o crear una sala se eligen recursos iniciales (0–10000), ingresos (0,5× / 1× / 2× / 3× / 5×), límite total de unidades (24–120), duración (3–60 minutos), puntos (100–2000) y escenario. El saldo inicial se añade a las tropas de partida; el multiplicador afecta solo a los 6 recursos por segundo, con las mismas reglas para cada humano y la IA. Los precios permanecen iguales. El botón de restauración recupera 410 recursos, 1×, 120 unidades, 12 minutos y 300 puntos.
+
+| Escenario | Tamaño | Objetivos |
+|---|---|---:|
+| Valle de la Bruma | Compacto · 1600 × 1000 | 3 |
+| Cuenca del Norte | Mediano · 2400 × 1600 | 5 |
+| Frontera de los Siete Pasos | Grande · 3200 × 2000 | 7 |
+
+Cada tamaño tiene un trazado propio. Carreteras aceleran, bosque y población dan cobertura y afectan a la visión; el agua solo se cruza por pasos transitables. En sala, todos ven los ajustes del anfitrión antes de prepararse. Cualquier cambio cancela la preparación de ambos; al empezar quedan bloqueados. La última configuración se guarda en el dispositivo.
 
 ### Controles
 
 | Acción | Táctil y ratón |
 |---|---|
 | Mover cámara | Arrastrar el mapa. |
-| Zoom | Pellizcar con dos dedos; rueda del ratón o botones + y −. |
-| Seleccionar | Tocar una unidad propia. «Selección +» permite añadir varias. |
-| Guardar grupo | «Guardar selección» y después 1, 2 o 3. Tocar el número recupera el grupo. |
+| Zoom | Pellizcar con dos dedos; rueda del ratón o botones + y − en «Mapa». «Vista general» encuadra todo el escenario. |
+| Seleccionar | Tocar una unidad propia. «＋▣» permite añadir varias. |
+| Guardar grupo | Abrir «Grupos», «Guardar selección» y después 1, 2 o 3. Tocar el número recupera el grupo. |
 | Dar orden | Seleccionar tropas, elegir «Mover» o «Avanzar y atacar» y tocar el destino. |
 | Embarcar | Seleccionar infantería, elegir «Embarcar» y tocar un transporte propio cercano. |
 | Refuerzos | Elegir una unidad y colocarla dentro de tu zona de despliegue. |
+| Más acciones y estadísticas | Botón «•••» de la selección; estadísticas bajo demanda. |
+| Cancelar orden pendiente | Tocar «Cancelar ×» o Escape, antes de elegir destino. |
 
-Arrastrar mueve la cámara aunque haya una orden seleccionada, para evitar órdenes accidentales. El manual dentro del juego explica humo, artillería, abastecimiento y objetivos. La interfaz recomienda horizontal y conserva controles en vertical.
+Mover y Avanzar y atacar detienen la unidad ante un enemigo válido, conservan el destino y continúan al perder el objetivo; no persiguen fuera de alcance. «Alto» cancela el destino. El humo es una habilidad y conserva la ruta. Arrastrar mueve la cámara aunque haya una orden seleccionada. Los paneles se abren de uno en uno; funcionan en horizontal y vertical.
 
 ## Qué significa «multijugador» aquí
 
@@ -124,4 +138,3 @@ docs/          Estado del proyecto e investigación
 ```
 
 La representación gráfica lee la simulación; cambiar resolución o efectos no modifica sus reglas. Estadísticas y mapa están en `shared/data.mjs`. No se incluyen campañas, tienda ni clasificaciones. Licencia del código propio: [MIT](LICENSE). Dependencias y procedencia: [THIRD_PARTY](THIRD_PARTY.md).
-
