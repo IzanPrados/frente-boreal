@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0",
+  "revision": "0f1226e5c04577529b43",
+  "files": [
+    {
+      "url": "/client/controls.mjs",
+      "revision": "b731a81101dfab9c598c8e2d318f003ea085b72dac95f75e3a26d206b8b16663"
+    },
+    {
+      "url": "/client/main.mjs",
+      "revision": "a0807821ec83a017c0f3afb116c50103d97748ca424e0deab1118cccdf58798e"
+    },
+    {
+      "url": "/client/network.mjs",
+      "revision": "08ec1b7f759b5bf88b1e685440a7122e64695bac7e92622faf5d5f1fef8d2db6"
+    },
+    {
+      "url": "/client/renderer.mjs",
+      "revision": "57b6f106238947fbf66edb3c834abaa68ff6694aefe174571ab1df6964a5e7c7"
+    },
+    {
+      "url": "/client/solo-worker.mjs",
+      "revision": "fe4490598f4c54a666f91e0fefb272ff10cbd89dc00adb59905937d0812937bf"
+    },
+    {
+      "url": "/client/style.css",
+      "revision": "f5d5ef3130562f0f2bf174d703156ccb2c76578b16de29aebfd79d5a198baa0d"
+    },
+    {
+      "url": "/icons/icon-192.png",
+      "revision": "3877c46514533d3afe35dad5182c189b01a57710076b6eac42ab12e361f3794c"
+    },
+    {
+      "url": "/icons/icon-512.png",
+      "revision": "b6d51dc871ecedfcf6f8687fbcdf4633895a8d6c32cac86577227d7acd2aadd9"
+    },
+    {
+      "url": "/icons/icon-maskable-192.png",
+      "revision": "3877c46514533d3afe35dad5182c189b01a57710076b6eac42ab12e361f3794c"
+    },
+    {
+      "url": "/icons/icon-maskable-512.png",
+      "revision": "b6d51dc871ecedfcf6f8687fbcdf4633895a8d6c32cac86577227d7acd2aadd9"
+    },
+    {
+      "url": "/index.html",
+      "revision": "2ca8ec0117ef31f0dbd519e8d2e8fd6d9e5c9a4dd5d48e169bae0cdfde4e8824"
+    },
+    {
+      "url": "/manifest.webmanifest",
+      "revision": "e82405a0f5704e0f8bbafbfcdcd07bd1f13f41096c7f6997ea5e99f8c4684a59"
+    },
+    {
+      "url": "/shared/data.mjs",
+      "revision": "c1057e5f25a475092d0e64bec4a42525ee83d2bf2baad08b46ef97db736af346"
+    },
+    {
+      "url": "/shared/sim.mjs",
+      "revision": "48ab910fc59acee5351edef5f54bc05b18076f23e2210f3bbeee0e8c71e475af"
+    },
+    {
+      "url": "/vendor/THREE-LICENSE.txt",
+      "revision": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    {
+      "url": "/vendor/three.core.js",
+      "revision": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6"
+    },
+    {
+      "url": "/vendor/three.module.js",
+      "revision": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea"
+    },
+    {
+      "url": "/vendor/WS-LICENSE.txt",
+      "revision": "2b29dcfe0d6471f7e8c92c5fb38c9f93edee10330937055440192f1832b1ecef"
+    }
+  ]
+}
