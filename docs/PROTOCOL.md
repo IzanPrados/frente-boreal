@@ -24,10 +24,11 @@ Cliente → servidor, JSON de texto:
 
 | Mensaje | Campos y efecto |
 | --- | --- |
-| `create` | `name`, `mode: solo/coop/versus`, `deck` opcional; crea una sala y toma la primera plaza. |
+| `create` | `name`, `mode: solo/coop/versus`, `deck` y `config` opcionales; valida ajustes, crea una sala y toma la primera plaza. |
 | `join` | `code`, `name`, `deck` opcional; entra antes del inicio. |
+| `configure` | `config`; solo el anfitrión en el vestíbulo. Publica los ajustes validados y reinicia la preparación de todos si cambian. |
 | `team` | `team: 0/1`; solo en vestíbulo. Cooperativo y solo usan equipo 0. Reinicia la preparación. |
-| `ready` | `ready: boolean`; indica preparación. |
+| `ready` | `ready: boolean`, `configRevision`; para prepararse debe coincidir con la revisión actual recibida. Desmarcarse no exige revisión. |
 | `start` | Solo el anfitrión, todas las plazas ocupadas, conectadas y preparadas. Duelo exige equipos distintos. |
 | `command` | `seq` entero creciente y `command` según el contrato de simulación. |
 | `resume` | `code`, `token`; recupera su identidad y sus confirmaciones anteriores. |
@@ -38,13 +39,32 @@ Servidor → cliente:
 | Mensaje | Contenido |
 | --- | --- |
 | `welcome` | `playerId`, `token`, `code`; guardar la credencial actualizada. |
-| `room` | `room: {code,mode,hostId,status,paused,players:[{id,name,team,ready,connected}]}`. |
+| `room` | `room: {code,mode,hostId,status,paused,config,configRevision,players:[{id,name,team,ready,connected}]}`. |
 | `state` | `state` de `snapshotFor(game,playerId)`, más `paused`, `pauseReason`, `reconnectDeadline`. |
 | `ack` | `seq`, `ok`, `error` opcional. |
 | `error` | `message` legible en español. |
 | `ended` | `message`; la sala o la conexión del jugador ya no mantienen esa sesión. |
 
 El servidor ignora identidades suministradas en una orden: utiliza la sesión del WebSocket. No acepta órdenes antes del inicio, durante la pausa ni después del final. Cada jugador conserva las 256 últimas confirmaciones: reenviar el mismo `seq` devuelve su confirmación sin ejecutar otra vez el gasto o la orden. Secuencias anteriores a esa ventana se rechazan. El cliente debe conservar el contador al reconectar, repetir una orden pendiente con su mismo `seq` y usar un número superior para una nueva orden.
+
+## Ajustes compartidos
+
+El contrato de `shared/config.mjs` se usa en el servidor y en el trabajador de la partida individual. `config` contiene:
+
+| Campo | Valor predeterminado | Validación y efecto |
+| --- | --- | --- |
+| `mapId` | `valle-bruma` | Identificador del catálogo de mapas; el mapa fija su tamaño, terreno y objetivos. |
+| `startingResources` | `410` | Entero de 0 a 10000, aplicado una vez a cada jugador y a la IA. |
+| `incomeMultiplier` | `1` | Uno de 0,5 / 1 / 2 / 3 / 5; multiplica los ingresos normales durante la partida. No altera precios ni presupuesto inicial. |
+| `maxUnits` | `120` | Entero de 24 a 120; límite global de unidades de la partida. |
+| `duration` | `720` | Entero de 180 a 3600 segundos; duración máxima. |
+| `tickets` | `300` | Entero de 100 a 2000; puntuación inicial de cada bando. |
+
+Omitir ajustes utiliza los valores predeterminados; los objetos parciales completan los campos ausentes con esos valores. Se rechazan campos desconocidos, tipos incorrectos y valores fuera de rango. La restauración tolerante de preferencias locales no sustituye esta validación del servidor.
+
+Cada sala empieza con `configRevision: 1`. Un cambio efectivo aumenta la revisión y desmarca a todos. Una preparación enviada con una revisión antigua o sin revisión se rechaza, aunque llegue después del cambio por retraso de red. Una petición idéntica conserva la revisión y la preparación. Al iniciar se entrega la misma configuración a la simulación autoritativa; tanto `room` como `state` exponen esos valores y quedan bloqueados durante la partida. Al reconectar se recibe la configuración actual del servidor.
+
+El servidor mantiene la ruta pendiente de cada unidad, escoge el objetivo, interrumpe el movimiento, resuelve los disparos y reanuda el trayecto. Los clientes no calculan otro combate. Los estados de unidades del propio equipo incluyen `combatPaused` y `combatTargetId`, junto a la orden y el destino pendiente; la vista rival sigue ocultando órdenes y datos tácticos privados.
 
 ## Ritmo, niebla y conexión
 
