@@ -1,25 +1,72 @@
 import { MAP, UNIT_TYPES, RULES, DEFAULT_DECK } from './data.mjs';
+import { validateConfig } from './config.mjs';
+import { getMap } from './maps.mjs';
 
 const CELL = 40;
-const COLS = MAP.width / CELL;
-const ROWS = MAP.height / CELL;
 const EPS = 0.00001;
+const TARGET_SCAN_SECONDS = 0.2;
+const LOST_TARGET_GRACE_SECONDS = 0.65;
+const DIRECTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inside = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 const alive = u => u.hp > 0 && !u.loadedIn;
-const pointOK = c => Number.isFinite(c.x) && Number.isFinite(c.y) && c.x >= 0 && c.x <= MAP.width && c.y >= 0 && c.y <= MAP.height;
+const pointOK = (c, map) => Number.isFinite(c.x) && Number.isFinite(c.y) && c.x >= 0 && c.x <= map.width && c.y >= 0 && c.y <= map.height;
 
-export function terrainAt(x, y) {
-  const p = { x, y };
-  if (MAP.terrain.some(t => t.type === 'road' && inside(p, t))) return 'road';
-  if (MAP.terrain.some(t => t.type === 'water' && inside(p, t))) return 'water';
-  return MAP.terrain.find(t => inside(p, t))?.type || 'open';
+// Immutable map definitions can share their spatial indexes between rooms. The
+// room always supplies its own map; no currently selected global map exists.
+const regionIndexes = new WeakMap();
+const navigationIndexes = new WeakMap();
+
+function regionsFor(map) {
+  let index = regionIndexes.get(map);
+  if (index) return index;
+  const cols = Math.ceil(map.width / CELL), rows = Math.ceil(map.height / CELL);
+  const cells = Array.from({ length: cols * rows }, () => []);
+  const priority = type => type === 'road' ? 0 : type === 'water' ? 1 : 2;
+  for (const region of [...map.terrain].sort((a, b) => priority(a.type) - priority(b.type))) {
+    const x0 = clamp(Math.floor(region.x / CELL), 0, cols - 1), x1 = clamp(Math.floor((region.x + region.w) / CELL), 0, cols - 1);
+    const y0 = clamp(Math.floor(region.y / CELL), 0, rows - 1), y1 = clamp(Math.floor((region.y + region.h) / CELL), 0, rows - 1);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) cells[y * cols + x].push(region);
+  }
+  index = { cols, rows, cells, water: map.terrain.filter(t => t.type === 'water'), roads: map.terrain.filter(t => t.type === 'road') };
+  regionIndexes.set(map, index);
+  return index;
 }
 
-const PASSABLE = Array.from({ length: COLS * ROWS }, (_, i) => terrainAt((i % COLS) * CELL + CELL / 2, Math.floor(i / COLS) * CELL + CELL / 2) !== 'water');
-const cellIndex = p => clamp(Math.floor(p.y / CELL), 0, ROWS - 1) * COLS + clamp(Math.floor(p.x / CELL), 0, COLS - 1);
-const cellPoint = i => ({ x: (i % COLS) * CELL + CELL / 2, y: Math.floor(i / COLS) * CELL + CELL / 2 });
+export function terrainAt(x, y, map = MAP) {
+  const p = { x, y };
+  const index = regionsFor(map);
+  const cell = clamp(Math.floor(y / CELL), 0, index.rows - 1) * index.cols + clamp(Math.floor(x / CELL), 0, index.cols - 1);
+  return index.cells[cell].find(t => inside(p, t))?.type || 'open';
+}
+
+function navigationFor(map) {
+  let grid = navigationIndexes.get(map);
+  if (grid) return grid;
+  const { cols, rows } = regionsFor(map);
+  grid = { cols, rows, passable: new Uint8Array(cols * rows), costs: new Float32Array(cols * rows), edges: new Uint8Array(cols * rows) };
+  for (let i = 0; i < grid.passable.length; i++) {
+    const point = cellPoint(i, grid), land = terrainAt(point.x, point.y, map);
+    grid.passable[i] = land !== 'water';
+    grid.costs[i] = land === 'road' ? 0.78 : land === 'forest' ? 1.5 : 1;
+  }
+  for (let i = 0; i < grid.passable.length; i++) {
+    if (!grid.passable[i]) continue;
+    const cx = i % cols, cy = Math.floor(i / cols), from = cellPoint(i, grid);
+    for (const [direction, [dx, dy]] of DIRECTIONS.entries()) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows || !grid.passable[ny * cols + nx]) continue;
+      if (dx && dy && (!grid.passable[cy * cols + nx] || !grid.passable[ny * cols + cx])) continue;
+      if (clearGround(from, cellPoint(ny * cols + nx, grid), map)) grid.edges[i] |= 1 << direction;
+    }
+  }
+  navigationIndexes.set(map, grid);
+  return grid;
+}
+
+const cellIndex = (p, grid) => clamp(Math.floor(p.y / CELL), 0, grid.rows - 1) * grid.cols + clamp(Math.floor(p.x / CELL), 0, grid.cols - 1);
+const cellPoint = (i, grid) => ({ x: (i % grid.cols) * CELL + CELL / 2, y: Math.floor(i / grid.cols) * CELL + CELL / 2 });
 
 function random(game) {
   let n = game.rng | 0;
@@ -28,67 +75,146 @@ function random(game) {
   return game.rng / 4294967296;
 }
 
-function clearGround(a, b) {
-  const count = Math.ceil(dist(a, b) / 12);
-  for (let i = 0; i <= count; i++) {
-    const t = count ? i / count : 0;
-    if (terrainAt(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t) === 'water') return false;
+function rectangleInterval(a, b, rect) {
+  let enter = 0, leave = 1;
+  for (const [origin, delta, low, high] of [[a.x, b.x - a.x, rect.x, rect.x + rect.w], [a.y, b.y - a.y, rect.y, rect.y + rect.h]]) {
+    if (Math.abs(delta) < 1e-12) {
+      if (origin < low || origin > high) return null;
+      continue;
+    }
+    const t0 = (low - origin) / delta, t1 = (high - origin) / delta;
+    enter = Math.max(enter, Math.min(t0, t1));
+    leave = Math.min(leave, Math.max(t0, t1));
+    if (enter > leave) return null;
+  }
+  return [enter, leave];
+}
+
+function clearGround(a, b, map) {
+  const index = regionsFor(map);
+  for (const water of index.water) {
+    const blocked = rectangleInterval(a, b, water);
+    if (!blocked) continue;
+    // Test the complete segment, including tiny clips at canal corners. Roads
+    // override water only where their intervals fully cover the intersection.
+    const bridges = index.roads.map(road => rectangleInterval(a, b, road)).filter(interval => interval && interval[1] >= blocked[0] && interval[0] <= blocked[1]).sort((left, right) => left[0] - right[0]);
+    let covered = blocked[0], crossed = false;
+    for (const interval of bridges) {
+      if (interval[0] > covered + 1e-10) break;
+      covered = Math.max(covered, interval[1]);
+      if (covered + 1e-10 >= blocked[1]) { crossed = true; break; }
+    }
+    if (!crossed) return false;
   }
   return true;
 }
 
-function nearestGround(p) {
-  p = { x: clamp(p.x, 15, MAP.width - 15), y: clamp(p.y, 15, MAP.height - 15) };
-  if (terrainAt(p.x, p.y) !== 'water') return p;
+function nearestGround(p, map) {
+  p = { x: clamp(p.x, 15, map.width - 15), y: clamp(p.y, 15, map.height - 15) };
+  if (terrainAt(p.x, p.y, map) !== 'water') return p;
+  const grid = navigationFor(map);
   let best = null, bestD = Infinity;
-  for (let i = 0; i < PASSABLE.length; i++) {
-    if (!PASSABLE[i]) continue;
-    const q = cellPoint(i), d = dist(p, q);
+  for (let i = 0; i < grid.passable.length; i++) {
+    if (!grid.passable[i]) continue;
+    const q = cellPoint(i, grid), d = dist(p, q);
     if (d < bestD) { best = q; bestD = d; }
   }
   return best;
 }
 
+function reachableCell(point, grid, map) {
+  const direct = cellIndex(point, grid);
+  if (grid.passable[direct] && clearGround(point, cellPoint(direct, grid), map)) return direct;
+  // Shorelines and bridges do not necessarily align with the navigation grid.
+  // Connect the exact point to a visible dry cell rather than assuming the
+  // center of its containing cell is usable.
+  const cx = direct % grid.cols, cy = Math.floor(direct / grid.cols);
+  for (const radius of [1, 2, 4, Math.max(grid.cols, grid.rows)]) {
+    let best = -1, bestDistance = Infinity;
+    for (let y = Math.max(0, cy - radius); y <= Math.min(grid.rows - 1, cy + radius); y++) {
+      for (let x = Math.max(0, cx - radius); x <= Math.min(grid.cols - 1, cx + radius); x++) {
+        const index = y * grid.cols + x;
+        if (!grid.passable[index]) continue;
+        const candidate = cellPoint(index, grid), distance = dist(point, candidate);
+        if (distance < bestDistance && clearGround(point, candidate, map)) { best = index; bestDistance = distance; }
+      }
+    }
+    if (best >= 0) return best;
+  }
+  return -1;
+}
+
+function queueBefore(a, b) { return a.score < b.score || (a.score === b.score && a.index < b.index); }
+function queuePush(heap, entry) {
+  heap.push(entry);
+  let index = heap.length - 1;
+  while (index > 0) {
+    const parent = (index - 1) >> 1;
+    if (!queueBefore(entry, heap[parent])) break;
+    heap[index] = heap[parent]; index = parent;
+  }
+  heap[index] = entry;
+}
+function queuePop(heap) {
+  const first = heap[0], last = heap.pop();
+  if (heap.length) {
+    let index = 0;
+    while (index * 2 + 1 < heap.length) {
+      const left = index * 2 + 1, right = left + 1;
+      const child = right < heap.length && queueBefore(heap[right], heap[left]) ? right : left;
+      if (!queueBefore(heap[child], last)) break;
+      heap[index] = heap[child]; index = child;
+    }
+    heap[index] = last;
+  }
+  return first;
+}
+
 // Small bounded A* grid shared by solo and authoritative server simulations.
-function pathTo(from, target, domain) {
+function pathTo(from, target, domain, map) {
   if (domain === 'air') return [{ x: target.x, y: target.y }];
-  const destination = nearestGround(target);
-  if (clearGround(from, destination)) return [destination];
-  const start = cellIndex(from), finish = cellIndex(destination);
-  const open = new Set([start]);
-  const scores = new Float64Array(PASSABLE.length).fill(Infinity);
-  const estimates = new Float64Array(PASSABLE.length).fill(Infinity);
-  const parent = new Int16Array(PASSABLE.length).fill(-1);
+  const destination = nearestGround(target, map);
+  if (!destination) return [];
+  if (clearGround(from, destination, map)) return [destination];
+  const grid = navigationFor(map), { cols, passable } = grid;
+  const start = reachableCell(from, grid, map), finish = reachableCell(destination, grid, map);
+  if (start < 0 || finish < 0) return [];
+  const open = [];
+  const scores = new Float64Array(passable.length).fill(Infinity);
+  const estimates = new Float64Array(passable.length).fill(Infinity);
+  const parent = new Int32Array(passable.length).fill(-1);
   scores[start] = 0;
-  estimates[start] = dist(cellPoint(start), destination);
-  while (open.size) {
-    let current = -1, low = Infinity;
-    for (const i of open) if (estimates[i] < low) { current = i; low = estimates[i]; }
+  estimates[start] = dist(cellPoint(start, grid), destination);
+  queuePush(open, { index: start, score: estimates[start] });
+  while (open.length) {
+    const entry = queuePop(open);
+    let current = entry.index;
+    if (entry.score > estimates[current] + EPS) continue;
     if (current === finish) {
       const raw = [destination];
-      while (current !== start) { raw.push(cellPoint(current)); current = parent[current]; }
+      while (current !== start) { raw.push(cellPoint(current, grid)); current = parent[current]; }
+      raw.push(cellPoint(start, grid));
       raw.reverse();
       const smooth = [];
       let origin = from;
       for (let i = 0; i < raw.length;) {
         let farthest = i;
-        while (farthest + 1 < raw.length && clearGround(origin, raw[farthest + 1])) farthest++;
+        while (farthest + 1 < raw.length && clearGround(origin, raw[farthest + 1], map)) farthest++;
+        if (!clearGround(origin, raw[farthest], map)) return [];
         smooth.push(raw[farthest]); origin = raw[farthest]; i = farthest + 1;
       }
       return smooth;
     }
-    open.delete(current);
-    const cx = current % COLS, cy = Math.floor(current / COLS);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    const cx = current % cols, cy = Math.floor(current / cols);
+    for (const [direction, [dx, dy]] of DIRECTIONS.entries()) {
+      if (!(grid.edges[current] & (1 << direction))) continue;
       const nx = cx + dx, ny = cy + dy;
-      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
-      const ni = ny * COLS + nx;
-      if (!PASSABLE[ni]) continue;
-      if (dx && dy && (!PASSABLE[cy * COLS + nx] || !PASSABLE[ny * COLS + cx])) continue;
-      const point = cellPoint(ni), land = terrainAt(point.x, point.y);
-      const score = scores[current] + (dx && dy ? 56.57 : 40) * (land === 'road' ? 0.78 : land === 'forest' ? 1.5 : 1);
+      const ni = ny * cols + nx;
+      const point = cellPoint(ni, grid);
+      const score = scores[current] + (dx && dy ? 56.57 : 40) * grid.costs[ni];
       if (score + EPS < scores[ni]) {
-        parent[ni] = current; scores[ni] = score; estimates[ni] = score + dist(point, destination) * 0.75; open.add(ni);
+        parent[ni] = current; scores[ni] = score; estimates[ni] = score + dist(point, destination) * 0.75;
+        queuePush(open, { index: ni, score: estimates[ni] });
       }
     }
   }
@@ -101,7 +227,7 @@ function sightClear(game, from, to, domain = 'ground') {
   let obstruction = 0;
   for (let i = 1; i < count; i++) {
     const t = i / count, p = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-    const land = terrainAt(p.x, p.y);
+    const land = terrainAt(p.x, p.y, game.map);
     if (land === 'forest' || land === 'town') obstruction += distance / count;
     if (game.smokes.some(s => dist(s, p) < s.radius)) obstruction += 80;
     if (obstruction > (from.type === 'recon' ? 130 : 80)) return false;
@@ -113,7 +239,7 @@ function sees(game, observer, target) {
   const data = UNIT_TYPES[observer.type], other = UNIT_TYPES[target.type];
   const d = dist(observer, target);
   if (d < 48) return true;
-  const land = terrainAt(target.x, target.y);
+  const land = terrainAt(target.x, target.y, game.map);
   const concealment = other.domain === 'ground' && (land === 'forest' || land === 'town') ? (observer.type === 'recon' ? 0.86 : 0.61) : 1;
   const firingBonus = game.time - target.lastShot < 2.5 ? 65 : 0;
   if (d > data.vision * concealment + firingBonus) return false;
@@ -147,7 +273,7 @@ function normalizeDeck(deck) {
 
 function spawn(game, player, type, position) {
   const data = UNIT_TYPES[type];
-  const location = data.domain === 'air' ? position : nearestGround(position);
+  const location = data.domain === 'air' ? position : nearestGround(position, game.map);
   const u = {
     id: `u${++game.unitId}`, ownerId: player.id, team: player.team, type,
     x: location.x, y: location.y, hp: data.hp, ammo: data.ammo,
@@ -155,32 +281,39 @@ function spawn(game, player, type, position) {
     cooldown: 0.2 + random(game) * 0.8, lastShot: -100, order: 'stop', target: null,
     path: [], cargo: [], loadedIn: null, smoke: data.smoke || 0,
     stock: data.stock || 0, moving: false, aiNext: 0,
+    combatTargetId: null, combatPaused: false, targetLostAt: null, nextTargetScan: 0,
   };
   game.units.push(u);
   return u;
 }
 
-export function createGame({ mode = 'solo', players = [{ id: 'player1', name: 'Comandante', team: 0 }], seed = 42, duration = RULES.defaultDuration } = {}) {
+export function createGame({ mode = 'solo', players = [{ id: 'player1', name: 'Comandante', team: 0 }], seed = 42, duration, config } = {}) {
   if (mode === 'versus') mode = 'pvp';
   if (!['solo', 'coop', 'pvp'].includes(mode)) throw new Error('Modo desconocido');
   if (!Array.isArray(players) || players.length < 1 || players.length > 4) throw new Error('Jugadores no válidos');
+  const validated = validateConfig(config);
+  if (!validated.ok) throw new Error(validated.error);
+  // The direct duration argument is retained for server/test fixtures. The
+  // public room protocol accepts only validated pre-match configuration.
+  const settings = Object.freeze({ ...validated.config, ...(Number.isFinite(duration) ? { duration: clamp(duration, 10, 3600) } : {}) });
+  const map = getMap(settings.mapId);
   const used = new Set();
   const humans = players.map((p, index) => {
     if (!p || typeof p.id !== 'string' || !p.id || p.id === 'ai' || used.has(p.id)) throw new Error('Identificador de jugador no válido');
     used.add(p.id);
-    return { id: p.id, name: String(p.name || `Comandante ${index + 1}`).slice(0, 32), team: mode === 'pvp' ? (p.team === 1 ? 1 : 0) : 0, deck: normalizeDeck(p.deck), credits: RULES.startCredits, ai: false, surrendered: false };
+    return { id: p.id, name: String(p.name || `Comandante ${index + 1}`).slice(0, 32), team: mode === 'pvp' ? (p.team === 1 ? 1 : 0) : 0, deck: normalizeDeck(p.deck), credits: settings.startingResources, ai: false, surrendered: false };
   });
   if (mode === 'pvp' && (!humans.some(p => p.team === 0) || !humans.some(p => p.team === 1))) throw new Error('El enfrentamiento necesita dos equipos');
-  if (mode !== 'pvp') humans.push({ id: 'ai', name: 'Mando rival', team: 1, deck: [...DEFAULT_DECK], credits: RULES.startCredits * (mode === 'coop' ? 1.4 : 1), ai: true, surrendered: false });
+  if (mode !== 'pvp') humans.push({ id: 'ai', name: 'Mando rival', team: 1, deck: [...DEFAULT_DECK], credits: settings.startingResources, ai: true, surrendered: false });
   const game = {
-    mode, tick: 0, time: 0, duration: Number.isFinite(duration) ? clamp(duration, 10, 3600) : RULES.defaultDuration,
+    mode, config: settings, map, tick: 0, time: 0, duration: settings.duration,
     status: 'playing', winner: null, reason: null, rng: (seed >>> 0) || 42,
-    players: humans, units: [], sectors: MAP.sectors.map(s => ({ ...s, owner: null, progress: 0, capturingTeam: null, contested: false })),
-    tickets: [RULES.tickets, RULES.tickets], events: [], smokes: [], projectiles: [], unitId: 0, eventId: 0, aiAt: 0.5,
+    players: humans, units: [], sectors: map.sectors.map(s => ({ ...s, owner: null, progress: 0, capturingTeam: null, contested: false })),
+    tickets: [settings.tickets, settings.tickets], events: [], smokes: [], projectiles: [], unitId: 0, eventId: 0, aiAt: 0.5,
   };
   for (const p of humans) {
     const index = humans.filter(q => q.team === p.team).findIndex(q => q.id === p.id);
-    const center = MAP.spawns[p.team];
+    const center = map.spawns[p.team];
     const starter = ['recon', 'infantry', 'tank', 'supply'].filter(t => p.deck.includes(t));
     if (!starter.length) starter.push(p.deck[0]);
     starter.forEach((type, i) => spawn(game, p, type, { x: center.x + (p.team === 0 ? 1 : -1) * ((i % 2) * 50 + 15), y: center.y - 75 + i * 45 + index * 70 }));
@@ -188,10 +321,15 @@ export function createGame({ mode = 'solo', players = [{ id: 'player1', name: 'C
   return game;
 }
 
-function setOrder(unit, type, target) {
+function setOrder(game, unit, type, target) {
   unit.order = type;
   unit.target = target ? { x: target.x, y: target.y } : null;
-  unit.path = target ? pathTo(unit, target, UNIT_TYPES[unit.type].domain) : [];
+  unit.path = target ? pathTo(unit, target, UNIT_TYPES[unit.type].domain, game.map) : [];
+  unit.combatTargetId = null;
+  unit.combatPaused = false;
+  unit.targetLostAt = null;
+  unit.nextTargetScan = 0;
+  unit.moving = false;
 }
 
 function finish(game, winner, reason) {
@@ -214,11 +352,11 @@ export function applyCommand(game, playerId, command) {
   if (type === 'deploy') {
     const data = Object.hasOwn(UNIT_TYPES, command.unitType) && UNIT_TYPES[command.unitType];
     if (!data || !player.deck.includes(command.unitType)) return { ok: false, error: 'La unidad no pertenece a tu grupo de combate.' };
-    if (game.units.filter(u => u.hp > 0).length >= RULES.maxUnits) return { ok: false, error: 'Se ha alcanzado el límite de 120 unidades de esta versión.' };
+    if (game.units.filter(u => u.hp > 0).length >= game.config.maxUnits) return { ok: false, error: `Se ha alcanzado el límite de ${game.config.maxUnits} unidades de esta partida.` };
     if (player.credits + EPS < data.cost) return { ok: false, error: 'Presupuesto insuficiente.' };
-    const point = { x: command.x ?? MAP.spawns[player.team].x, y: command.y ?? MAP.spawns[player.team].y };
-    if (!pointOK(point) || dist(point, MAP.spawns[player.team]) > RULES.deploymentRadius) return { ok: false, error: 'Despliega dentro del círculo de tu base.' };
-    if (data.domain === 'ground' && terrainAt(point.x, point.y) === 'water') return { ok: false, error: 'No puedes desplegar en el agua.' };
+    const point = { x: command.x ?? game.map.spawns[player.team].x, y: command.y ?? game.map.spawns[player.team].y };
+    if (!pointOK(point, game.map) || dist(point, game.map.spawns[player.team]) > RULES.deploymentRadius) return { ok: false, error: 'Despliega dentro del círculo de tu base.' };
+    if (data.domain === 'ground' && terrainAt(point.x, point.y, game.map) === 'water') return { ok: false, error: 'No puedes desplegar en el agua.' };
     player.credits -= data.cost;
     const unit = spawn(game, player, command.unitType, point);
     emit(game, 'deploy', { unitId: unit.id, team: player.team, x: unit.x, y: unit.y });
@@ -226,18 +364,18 @@ export function applyCommand(game, playerId, command) {
   }
   const supported = ['move', 'attackMove', 'stop', 'unload', 'load', 'resupply', 'smoke', 'fire'];
   if (!supported.includes(type)) return { ok: false, error: 'Orden desconocida.' };
-  if (!Array.isArray(command.unitIds) || !command.unitIds.length || command.unitIds.length > RULES.maxUnits || command.unitIds.some(id => typeof id !== 'string')) return { ok: false, error: 'Selecciona tus unidades.' };
+  if (!Array.isArray(command.unitIds) || !command.unitIds.length || command.unitIds.length > game.config.maxUnits || command.unitIds.some(id => typeof id !== 'string')) return { ok: false, error: 'Selecciona tus unidades.' };
   const ids = [...new Set(command.unitIds)];
   const units = ids.map(id => game.units.find(u => u.id === id && u.hp > 0));
   if (units.some(u => !u || u.ownerId !== playerId)) return { ok: false, error: 'Solo puedes dar órdenes a tus propias unidades.' };
-  if (['move', 'attackMove', 'smoke', 'fire'].includes(type) && !pointOK(command)) return { ok: false, error: 'Destino no válido.' };
+  if (['move', 'attackMove', 'smoke', 'fire'].includes(type) && !pointOK(command, game.map)) return { ok: false, error: 'Destino no válido.' };
   if (units.some(u => u.loadedIn) && type !== 'unload') return { ok: false, error: 'Desembarca primero a la infantería.' };
   if (type === 'load') {
     const transport = game.units.find(u => u.id === command.transportId && alive(u));
     if (!transport || transport.ownerId !== playerId || !UNIT_TYPES[transport.type].capacity) return { ok: false, error: 'Selecciona un transporte propio.' };
     if (units.some(u => u.type !== 'infantry') || units.length + transport.cargo.length > UNIT_TYPES[transport.type].capacity) return { ok: false, error: 'Solo caben dos escuadras de infantería.' };
     if (units.some(u => dist(u, transport) > 95)) return { ok: false, error: 'Acerca la infantería al transporte (95 m).' };
-    for (const u of units) { u.loadedIn = transport.id; transport.cargo.push(u.id); setOrder(u, 'stop'); u.x = transport.x; u.y = transport.y; }
+    for (const u of units) { u.loadedIn = transport.id; transport.cargo.push(u.id); setOrder(game, u, 'stop'); u.x = transport.x; u.y = transport.y; }
     return { ok: true };
   }
   if (type === 'unload') {
@@ -247,8 +385,8 @@ export function applyCommand(game, playerId, command) {
       transport.cargo.forEach((id, i) => {
         const u = game.units.find(candidate => candidate.id === id);
         if (!u) return;
-        const point = nearestGround({ x: transport.x + 24 * (transport.team === 0 ? 1 : -1), y: transport.y + (i ? 28 : -28) });
-        u.loadedIn = null; u.x = point.x; u.y = point.y; setOrder(u, 'stop');
+        const point = nearestGround({ x: transport.x + 24 * (transport.team === 0 ? 1 : -1), y: transport.y + (i ? 28 : -28) }, game.map);
+        u.loadedIn = null; u.x = point.x; u.y = point.y; setOrder(game, u, 'stop');
       });
       transport.cargo = [];
     }
@@ -265,24 +403,24 @@ export function applyCommand(game, playerId, command) {
   if (type === 'fire') {
     const guns = units.filter(u => u.type === 'artillery' && u.ammo >= 1 && dist(u, command) <= UNIT_TYPES.artillery.range && dist(u, command) >= UNIT_TYPES.artillery.minRange);
     if (!guns.length) return { ok: false, error: 'Selecciona artillería con munición y objetivo a 100–510 m.' };
-    for (const gun of guns) { setOrder(gun, 'fire'); gun.target = { x: command.x, y: command.y }; }
+    for (const gun of guns) { setOrder(game, gun, 'fire'); gun.target = { x: command.x, y: command.y }; }
     return { ok: true };
   }
   if (type === 'resupply') {
     for (const u of units) {
       const suppliers = game.units.filter(s => alive(s) && s.team === u.team && s.type === 'supply' && s.id !== u.id && s.stock > 1).sort((a, b) => dist(u, a) - dist(u, b));
-      const base = MAP.spawns[u.team], supplier = suppliers[0];
+      const base = game.map.spawns[u.team], supplier = suppliers[0];
       const target = supplier && dist(u, supplier) < dist(u, base) ? supplier : base;
-      setOrder(u, 'resupply', target);
+      setOrder(game, u, 'resupply', target);
     }
     return { ok: true };
   }
   units.forEach((u, i) => {
-    if (type === 'stop') { setOrder(u, 'stop'); return; }
+    if (type === 'stop') { setOrder(game, u, 'stop'); return; }
     const cols = Math.ceil(Math.sqrt(units.length));
     const spacing = units.length > 1 ? 25 : 0;
-    const target = { x: clamp(command.x + (i % cols - (cols - 1) / 2) * spacing, 10, MAP.width - 10), y: clamp(command.y + (Math.floor(i / cols) - (Math.ceil(units.length / cols) - 1) / 2) * spacing, 10, MAP.height - 10) };
-    setOrder(u, type, target);
+    const target = { x: clamp(command.x + (i % cols - (cols - 1) / 2) * spacing, 10, game.map.width - 10), y: clamp(command.y + (Math.floor(i / cols) - (Math.ceil(units.length / cols) - 1) / 2) * spacing, 10, game.map.height - 10) };
+    setOrder(game, u, type, target);
   });
   return { ok: true };
 }
@@ -291,24 +429,61 @@ function targetAllowed(unit, target) {
   return UNIT_TYPES[unit.type].targets.includes(UNIT_TYPES[target.type].domain);
 }
 
+function validTarget(game, unit, target, visibility) {
+  if (!target || !alive(target) || target.team === unit.team || !visibility.has(target.id) || !targetAllowed(unit, target)) return false;
+  const data = UNIT_TYPES[unit.type], distance = dist(unit, target);
+  if (distance > data.range || distance < (data.minRange || 0)) return false;
+  return unit.type === 'artillery' || sightClear(game, unit, target, UNIT_TYPES[target.type].domain);
+}
+
 function chooseTarget(game, unit, visibility) {
   const data = UNIT_TYPES[unit.type];
-  if (!data.damage || unit.ammo < 1) return null;
+  if (!data.damage || unit.ammo < 1 || unit.suppression >= 0.97) {
+    unit.combatTargetId = null;
+    return null;
+  }
+  // Keep the same opponent while it remains attackable. A closer arrival does
+  // not cause a target switch on every tick, and no target is ever chased.
+  const retained = game.units.find(candidate => candidate.id === unit.combatTargetId);
+  if (validTarget(game, unit, retained, visibility)) return retained;
+  unit.combatTargetId = null;
+  if (game.time + EPS < unit.nextTargetScan) return null;
+  unit.nextTargetScan = game.time + TARGET_SCAN_SECONDS;
   let chosen = null, best = Infinity;
   for (const target of game.units) {
-    if (!alive(target) || target.team === unit.team || !visibility.has(target.id) || !targetAllowed(unit, target)) continue;
+    if (!validTarget(game, unit, target, visibility)) continue;
     const distance = dist(unit, target);
-    if (distance > data.range || distance < (data.minRange || 0)) continue;
-    if (unit.type !== 'artillery' && !sightClear(game, unit, target, UNIT_TYPES[target.type].domain)) continue;
     const priority = distance + (target.type === 'supply' ? 40 : target.type === 'recon' ? -20 : 0);
-    if (priority < best) { best = priority; chosen = target; }
+    if (priority < best || (priority === best && target.id.localeCompare(chosen.id, 'en') < 0)) { best = priority; chosen = target; }
   }
+  unit.combatTargetId = chosen?.id || null;
   return chosen;
+}
+
+function updateEngagement(game, unit, enemy) {
+  if (!unit.path.length || !['move', 'attackMove'].includes(unit.order)) {
+    unit.combatPaused = false;
+    unit.targetLostAt = null;
+    return;
+  }
+  if (enemy) {
+    unit.combatPaused = true;
+    unit.targetLostAt = null;
+    return;
+  }
+  if (!unit.combatPaused) return;
+  // A brief loss of sight/range must not produce stop-go jitter. Invalid
+  // targets cannot be fired at; after this bounded grace the route resumes.
+  unit.targetLostAt ??= game.time;
+  if (game.time - unit.targetLostAt + EPS >= LOST_TARGET_GRACE_SECONDS) {
+    unit.combatPaused = false;
+    unit.targetLostAt = null;
+  }
 }
 
 function damageUnit(game, unit, raw, attacker, area = false) {
   if (unit.hp <= 0) return;
-  const data = UNIT_TYPES[unit.type], land = terrainAt(unit.x, unit.y);
+  const data = UNIT_TYPES[unit.type], land = terrainAt(unit.x, unit.y, game.map);
   const cover = data.domain === 'air' ? 1 : land === 'forest' ? (unit.type === 'infantry' ? 0.5 : 0.78) : land === 'town' ? (unit.type === 'infantry' ? 0.4 : 0.72) : 1;
   const antiArmor = ['tank', 'helicopter', 'jet', 'artillery'].includes(attacker.type) ? 0.58 : attacker.type === 'infantry' && dist(unit, attacker) < 100 ? 0.65 : 1;
   const impact = Math.max(raw * 0.13, raw - data.armor * antiArmor) * cover;
@@ -333,7 +508,7 @@ function shoot(game, unit, target, coordinate = false) {
   unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
   if (unit.type === 'artillery') {
     const angle = random(game) * Math.PI * 2, spread = 12 + random(game) * 30;
-    const x = clamp(target.x + Math.cos(angle) * spread, 0, MAP.width), y = clamp(target.y + Math.sin(angle) * spread, 0, MAP.height);
+    const x = clamp(target.x + Math.cos(angle) * spread, 0, game.map.width), y = clamp(target.y + Math.sin(angle) * spread, 0, game.map.height);
     game.projectiles.push({ x, y, due: game.time + 1.25, team: unit.team, ownerId: unit.ownerId, type: unit.type, damage: data.damage, radius: data.blast });
     emit(game, 'shot', { x: unit.x, y: unit.y, tx: x, ty: y, team: unit.team, unitType: unit.type, indirect: true });
     return;
@@ -345,13 +520,13 @@ function shoot(game, unit, target, coordinate = false) {
   else if (!coordinate) target.suppression = clamp(target.suppression + 0.055, 0, 1);
 }
 
-function updateMovement(unit, dt, enemy) {
+function updateMovement(game, unit, dt) {
   const data = UNIT_TYPES[unit.type];
   unit.moving = false;
-  if (!unit.path.length || (unit.order === 'attackMove' && enemy && unit.ammo >= 1)) return;
+  if (!unit.path.length || unit.combatPaused) return;
   let point = unit.path[0], distance = dist(unit, point);
   if (unit.order === 'resupply' && unit.path.length === 1 && distance < 58) { unit.path = []; return; }
-  const land = terrainAt(unit.x, unit.y);
+  const land = terrainAt(unit.x, unit.y, game.map);
   const modifier = data.domain === 'air' ? 1 : land === 'road' ? 1.38 : land === 'forest' ? (unit.type === 'infantry' ? 0.82 : 0.5) : land === 'town' ? (unit.type === 'infantry' ? 0.9 : 0.65) : 1;
   const speed = data.speed * modifier * (1 - unit.suppression * 0.77);
   let remaining = speed * dt;
@@ -370,7 +545,7 @@ function updateSupply(game, dt) {
   for (const unit of game.units) {
     if (!alive(unit)) continue;
     const data = UNIT_TYPES[unit.type];
-    const inBase = dist(unit, MAP.spawns[unit.team]) < 175;
+    const inBase = dist(unit, game.map.spawns[unit.team]) < 175;
     if (unit.type === 'supply' && inBase) unit.stock = Math.min(data.stock, unit.stock + 18 * dt);
     if (unit.moving || game.time - unit.lastShot < 3) continue;
     let supplier = suppliers.find(s => s.id !== unit.id && s.team === unit.team && dist(unit, s) < RULES.supplyRadius && !s.moving && s.stock > 0);
@@ -432,7 +607,7 @@ function updateAI(game) {
       const choices = ['infantry', 'tank', 'infantry', 'recon', 'helicopter', 'artillery', 'aa', 'transport', 'jet'];
       type = choices[Math.floor(random(game) * choices.length)];
     }
-    if (ai.credits >= UNIT_TYPES[type].cost) applyCommand(game, ai.id, { type: 'deploy', unitType: type, x: MAP.spawns[ai.team].x + random(game) * 70 - 35, y: MAP.spawns[ai.team].y + random(game) * 190 - 95 });
+    if (ai.credits >= UNIT_TYPES[type].cost) applyCommand(game, ai.id, { type: 'deploy', unitType: type, x: game.map.spawns[ai.team].x + random(game) * 70 - 35, y: game.map.spawns[ai.team].y + random(game) * 190 - 95 });
   }
   for (const unit of friends) {
     if (game.time < unit.aiNext) continue;
@@ -444,13 +619,14 @@ function updateAI(game) {
       continue;
     }
     if (unit.order === 'resupply' && (unit.hp < data.hp * 0.75 || unit.ammo < data.ammo * 0.65)) continue;
+    if (unit.combatPaused) continue;
     if (unit.type === 'supply') {
-      if (unit.stock < 50) { setOrder(unit, 'move', MAP.spawns[unit.team]); continue; }
+      if (unit.stock < 50) { setOrder(game, unit, 'move', game.map.spawns[unit.team]); continue; }
       const soldiers = friends.filter(u => !['supply', 'jet', 'helicopter'].includes(u.type));
       if (soldiers.length) {
         const average = soldiers.reduce((p, u) => ({ x: p.x + u.x / soldiers.length, y: p.y + u.y / soldiers.length }), { x: 0, y: 0 });
-        const target = { x: clamp(average.x + 90, 30, 1450), y: clamp(average.y, 30, 970) };
-        if (dist(unit, target) > 75) setOrder(unit, 'move', target); else setOrder(unit, 'stop');
+        const target = { x: clamp(average.x + 90, 30, game.map.width - 30), y: clamp(average.y, 30, game.map.height - 30) };
+        if (dist(unit, target) > 75) setOrder(game, unit, 'move', target); else setOrder(game, unit, 'stop');
       }
       continue;
     }
@@ -458,13 +634,14 @@ function updateAI(game) {
       const target = enemies.find(e => dist(unit, e) < data.range && dist(unit, e) > data.minRange);
       if (target) { applyCommand(game, ai.id, { type: 'fire', unitIds: [unit.id], x: target.x, y: target.y }); continue; }
     }
-    const danger = enemies.filter(e => dist(unit, e) < data.range * 0.88 && targetAllowed(unit, e)).sort((a, b) => dist(unit, a) - dist(unit, b))[0];
-    if (danger && unit.type !== 'recon') { setOrder(unit, 'stop'); continue; }
-    const objectives = game.sectors.map(s => ({ sector: s, score: dist(unit, s) + (s.owner === ai.team ? 300 : 0) + (s.contested ? -180 : 0) + random(game) * 290 })).sort((a, b) => a.score - b.score);
+    const objectives = game.sectors.map(s => {
+      const assigned = friends.filter(other => other.id !== unit.id && UNIT_TYPES[other.type].capture > 0 && dist(other.target || other, s) < s.radius * 1.6).length;
+      return { sector: s, score: dist(unit, s) + assigned * 160 + (s.owner === ai.team ? 300 : 0) + (s.contested ? -180 : 0) + random(game) * 290 };
+    }).sort((a, b) => a.score - b.score);
     const sector = objectives[0].sector;
     const offset = unit.type === 'artillery' ? 260 : unit.type === 'aa' ? 140 : unit.type === 'recon' ? 65 : 0;
     const flank = unit.type === 'recon' || unit.type === 'helicopter' ? (random(game) < 0.5 ? -65 : 65) : random(game) * 60 - 30;
-    if (dist(unit, sector) > sector.radius * 0.6 || sector.owner !== ai.team) setOrder(unit, 'attackMove', { x: clamp(sector.x + offset, 30, MAP.width - 30), y: clamp(sector.y + flank, 30, MAP.height - 30) });
+    if (dist(unit, sector) > sector.radius * 0.6 || sector.owner !== ai.team) setOrder(game, unit, 'attackMove', { x: clamp(sector.x + offset, 30, game.map.width - 30), y: clamp(sector.y + flank, 30, game.map.height - 30) });
   }
 }
 
@@ -474,7 +651,7 @@ export function stepGame(game, dt = 0.1) {
   game.tick++; game.time += dt;
   game.events = game.events.filter(e => game.time - e.time < 2.8);
   game.smokes = game.smokes.filter(s => s.until > game.time);
-  for (const player of game.players) if (!player.surrendered) player.credits = Math.min(9999, player.credits + RULES.incomePerSecond * (player.ai && game.mode === 'coop' ? 1.5 : 1) * dt);
+  for (const player of game.players) if (!player.surrendered) player.credits = Math.min(1000000, player.credits + RULES.incomePerSecond * game.config.incomeMultiplier * dt);
   if (game.time >= game.aiAt) { updateAI(game); game.aiAt = game.time + 2.1; }
   const views = [visibleSet(game, 0), visibleSet(game, 1)];
   for (const unit of game.units) {
@@ -482,12 +659,13 @@ export function stepGame(game, dt = 0.1) {
     unit.suppression = Math.max(0, unit.suppression - dt * 0.075);
     unit.cooldown = Math.max(0, unit.cooldown - dt);
     const target = chooseTarget(game, unit, views[unit.team]);
-    updateMovement(unit, dt, target);
+    updateEngagement(game, unit, target);
+    updateMovement(game, unit, dt);
     if (unit.cooldown <= 0 && unit.ammo >= 1 && unit.suppression < 0.97) {
       if (unit.type === 'artillery' && unit.order === 'fire' && unit.target) {
         const range = dist(unit, unit.target);
         if (range <= UNIT_TYPES.artillery.range && range >= UNIT_TYPES.artillery.minRange) shoot(game, unit, unit.target, true);
-      } else if (target && alive(target)) shoot(game, unit, target);
+      } else if (validTarget(game, unit, target, views[unit.team])) shoot(game, unit, target);
     }
     for (const id of unit.cargo) { const carried = game.units.find(u => u.id === id); if (carried) { carried.x = unit.x; carried.y = unit.y; } }
   }
@@ -518,20 +696,23 @@ export function snapshotFor(game, playerId) {
       ammo: ownTeam ? round(u.ammo) : null, maxAmmo: ownTeam ? data.ammo : null,
       suppression: round(u.suppression), heading: round(u.heading), domain: data.domain,
       order: ownTeam ? u.order : null, target: ownTeam && u.target ? { ...u.target } : null,
+      combatPaused: ownTeam ? u.combatPaused : null,
+      combatTargetId: ownTeam ? u.combatTargetId : null,
       cargo: ownTeam ? [...u.cargo] : [], loadedIn: ownTeam ? u.loadedIn : null,
       stock: ownTeam ? round(u.stock) : null, smoke: ownTeam ? u.smoke : null,
-      moving: u.moving, terrainType: terrainAt(u.x, u.y),
+      moving: u.moving, terrainType: terrainAt(u.x, u.y, game.map),
     };
   });
   const events = game.events.filter(e => ['capture', 'victory'].includes(e.type) || e.team === player.team || (Number.isFinite(e.x) && pointVisible(game, player.team, e))).map(e => ({ ...e }));
   return {
     tick: game.tick, time: round(game.time), duration: game.duration, mode: game.mode,
+    config: { ...game.config }, mapId: game.map.id,
     status: game.status, winner: game.winner, reason: game.reason,
     playerId: player.id, team: player.team, units,
     players: game.players.map(p => ({ id: p.id, name: p.name, team: p.team, credits: p.team === player.team ? round(p.credits) : null, ai: p.ai, surrendered: p.surrendered, deck: p.id === player.id ? [...p.deck] : undefined })),
     sectors: game.sectors.map(s => ({ ...s, progress: round(s.progress) })), tickets: game.tickets.map(round), events,
     smokes: game.smokes.filter(s => s.team === player.team || pointVisible(game, player.team, s)).map(s => ({ ...s })),
     vision: game.units.filter(u => alive(u) && u.team === player.team).map(u => ({ x: round(u.x), y: round(u.y), radius: UNIT_TYPES[u.type].vision })),
-    limits: { maxUnits: RULES.maxUnits, deploymentRadius: RULES.deploymentRadius },
+    limits: { maxUnits: game.config.maxUnits, deploymentRadius: RULES.deploymentRadius },
   };
 }
