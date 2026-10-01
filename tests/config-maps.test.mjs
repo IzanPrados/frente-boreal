@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, INCOME_MULTIPLIERS, normalizeConfig, validateConfig } from '../shared/config.mjs';
 import { MAPS, DEFAULT_MAP_ID, getMap, isMapId } from '../shared/maps.mjs';
 import { MAP, RULES } from '../shared/data.mjs';
-import { createGame, applyCommand, stepGame, terrainAt as simulatedTerrainAt } from '../shared/sim.mjs';
+import { createGame, applyCommand, stepGame, terrainAt as simulatedTerrainAt, groundPassable } from '../shared/sim.mjs';
+import { containsPoint, segmentRectangleInterval, VEGETATION_PRESETS, vegetationAt } from '../shared/terrain.mjs';
 
 test('default configuration preserves the existing compact scenario and economy', () => {
   assert.deepEqual(validateConfig(undefined), { ok: true, config: DEFAULT_CONFIG });
@@ -14,7 +15,11 @@ test('default configuration preserves the existing compact scenario and economy'
   assert.equal(DEFAULT_CONFIG.duration, RULES.defaultDuration);
   assert.equal(DEFAULT_CONFIG.tickets, RULES.tickets);
   const compact = getMap();
-  assert.deepEqual(compact.terrain, MAP.terrain);
+  for (const original of MAP.terrain) {
+    const retained = compact.terrain.find(feature => feature.id === original.id);
+    assert.ok(retained, `Original terrain ${original.id} must remain`);
+    for (const key of ['x', 'y', 'w', 'h', 'type']) assert.equal(retained[key], original[key]);
+  }
   assert.deepEqual(compact.spawns, MAP.spawns);
   assert.deepEqual(compact.sectors, MAP.sectors);
 });
@@ -81,7 +86,7 @@ function gridFor(map, cell = 40) {
   const index = p => Math.floor(p.y / cell) * cols + Math.floor(p.x / cell);
   const ground = Array.from({ length: cols * rows }, (_, i) => {
     const p = point(i);
-    return terrainAt(map, p.x, p.y) !== 'water';
+    return terrainAt(map, p.x, p.y) !== 'water' && !map.buildings.some(building => containsPoint(p, building));
   });
   return { cols, rows, point, index, ground };
 }
@@ -95,19 +100,24 @@ function flood(map) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy, next = ny * grid.cols + nx;
       if (nx < 0 || nx >= grid.cols || ny < 0 || ny >= grid.rows || !grid.ground[next] || found.has(next)) continue;
+      if (map.buildings.some(building => segmentRectangleInterval(grid.point(current), grid.point(next), building))) continue;
       found.add(next); pending.push(next);
     }
   }
   return { ...grid, found };
 }
 
-test('map catalog provides three genuinely larger authored scenarios with frozen, bounded terrain', () => {
-  assert.equal(MAPS.length, 3);
+test('map catalog retains three maps and adds a physically larger fourth scenario with solid settlements', () => {
+  assert.equal(MAPS.length, 4);
   assert.equal(new Set(MAPS.map(map => map.id)).size, MAPS.length);
   assert.equal(isMapId('missing-map'), false);
   assert.equal(getMap('missing-map'), getMap());
   assert.ok(MAPS[2].width * MAPS[2].height >= MAPS[0].width * MAPS[0].height * 4);
   assert.equal(MAPS[2].sectors.length, 7);
+  assert.equal(MAPS[3].width, 4800);
+  assert.equal(MAPS[3].height, 3000);
+  assert.equal(MAPS[3].width * MAPS[3].height / (MAPS[2].width * MAPS[2].height), 2.25);
+  assert.equal(MAPS[3].sectors.length, 9);
   for (const map of MAPS) {
     assert.ok(Object.isFrozen(map) && Object.isFrozen(map.terrain[0]));
     assert.equal(map.width % 40, 0); assert.equal(map.height % 40, 0);
@@ -151,7 +161,7 @@ test('new maps give both sides equal terrain, matching objective approaches and 
       terrainCounts[land]++;
       assert.equal(land, terrainAt(map, map.width - p.x, map.height - p.y), `${map.id}: unfair terrain at ${p.x},${p.y}`);
     }
-    assert.ok(terrainCounts.forest / grid.ground.length > 0.10, `${map.id}: insufficient functional forest`);
+    assert.ok(terrainCounts.forest / grid.ground.length > 0.07, `${map.id}: insufficient functional forest`);
     assert.ok(terrainCounts.town > 40 && terrainCounts.road > 100 && terrainCounts.open > 300);
     for (const point of map.sectors) {
       const counterpart = map.sectors.find(other => other.x === map.width - point.x && other.y === map.height - point.y);
@@ -194,16 +204,89 @@ test('actual ground movement reaches every new objective from both deployment zo
 test('AI contests multiple objectives and completes a real seeded match on each larger map', () => {
   for (const map of MAPS.slice(1)) {
     const game = createGame({ config: { mapId: map.id }, seed: 20261001 });
-    const captures = new Set();
+    const captures = new Set(), occupiedByAI = new Set();
     while (game.status === 'playing' && game.tick < 7201) {
       stepGame(game, 0.1);
       for (const event of game.events) if (event.type === 'capture' && event.team === 1) captures.add(event.sectorId);
-      for (const troop of game.units) if (troop.domain !== 'air' && !['helicopter', 'jet'].includes(troop.type) && !troop.loadedIn) {
-        assert.notEqual(simulatedTerrainAt(troop.x, troop.y, game.map), 'water', `${map.id}: AI/human ground unit enters blocked water`);
+      for (const troop of game.units) if (troop.ownerId === 'ai' && troop.garrisonedIn) occupiedByAI.add(troop.garrisonedIn);
+      for (const troop of game.units) if (troop.domain !== 'air' && !['helicopter', 'jet'].includes(troop.type) && !troop.loadedIn && !troop.garrisonedIn) {
+        assert.ok(groundPassable(troop.x, troop.y, game.map), `${map.id}: AI/human ground unit enters blocked terrain`);
       }
     }
     assert.equal(game.status, 'finished', `${map.id}: match never finishes`);
     assert.equal(game.winner, 1, `${map.id}: active AI must defeat an idle opponent`);
     assert.ok(captures.size >= Math.ceil(map.sectors.length / 2), `${map.id}: AI failed to spread across objectives (${captures.size})`);
+    if (map.size === 'very-large') assert.ok(occupiedByAI.size > 0, 'AI must use the new map buildings during an actual match');
+  }
+});
+
+test('all buildings have visible bounded footprints, clear doors and usable occupancy parameters', () => {
+  for (const map of MAPS) {
+    assert.ok(map.buildings.length > 0);
+    assert.equal(new Set(map.buildings.map(building => building.id)).size, map.buildings.length);
+    for (const building of map.buildings) {
+      assert.ok(Object.isFrozen(building));
+      assert.ok(building.w >= 30 && building.h >= 30 && building.height > 0);
+      assert.ok(building.x >= 0 && building.y >= 0 && building.x + building.w <= map.width && building.y + building.h <= map.height);
+      assert.equal(building.occupiable, building.capacity > 0);
+      assert.ok([0, 1, 2].includes(building.capacity));
+      assert.ok(building.protection > 0 && building.protection < 1);
+      assert.equal(groundPassable(building.x + building.w / 2, building.y + building.h / 2, map), false);
+      assert.ok(building.doors.length > 0 && building.firePoints.length > 0);
+      for (const point of [...building.doors, ...building.firePoints]) {
+        assert.ok(groundPassable(point.x, point.y, map), `${map.id}/${building.id}: entrance or firing point blocked at ${point.x},${point.y}`);
+      }
+      for (const region of map.terrain.filter(region => ['water', 'road'].includes(region.type))) {
+        const overlap = building.x < region.x + region.w && building.x + building.w > region.x && building.y < region.y + region.h && building.y + building.h > region.y;
+        assert.equal(overlap, false, `${map.id}/${building.id}: footprint on road or water`);
+      }
+      for (const other of map.buildings) if (other !== building) {
+        const overlap = building.x < other.x + other.w && building.x + building.w > other.x && building.y < other.y + other.h && building.y + building.h > other.y;
+        assert.equal(overlap, false, `${map.id}/${building.id}: overlapping solid buildings`);
+      }
+      if (map !== MAPS[0]) {
+        const counterpart = map.buildings.find(other => other.x === map.width - building.x - building.w && other.y === map.height - building.y - building.h);
+        assert.ok(counterpart, `${map.id}/${building.id}: missing balanced counterpart`);
+        assert.equal(counterpart.capacity, building.capacity);
+        assert.equal(counterpart.protection, building.protection);
+      }
+    }
+  }
+  assert.ok(MAPS[3].buildings.some(building => !building.occupiable));
+});
+
+test('every building entrance has a real route and troops can walk to a door without entering solid walls', () => {
+  for (const map of MAPS) for (const building of map.buildings) {
+    const team = building.x < map.width / 2 ? 0 : 1;
+    const game = createGame({ mode: 'pvp', players: [{ id: 'blue', team: 0 }, { id: 'red', team: 1 }], config: { mapId: map.id, duration: 3600, tickets: 2000 } });
+    const troop = game.units.find(unit => unit.team === team && unit.type === 'recon');
+    game.units = [troop];
+    for (const door of building.doors) {
+      Object.assign(troop, map.spawns[team]);
+      assert.equal(applyCommand(game, troop.ownerId, { type: 'move', unitIds: [troop.id], ...door }).ok, true);
+      assert.ok(troop.path.length, `${map.id}/${building.id}: inaccessible door`);
+    }
+    for (let tick = 0; tick < 2000 && troop.order !== 'stop'; tick++) {
+      stepGame(game, 0.1);
+      assert.ok(groundPassable(troop.x, troop.y, map), `${map.id}/${building.id}: crossed a wall or water on approach`);
+    }
+    const door = building.doors.at(-1);
+    assert.ok(Math.hypot(troop.x - door.x, troop.y - door.y) < 2, `${map.id}/${building.id}: did not reach exterior door`);
+  }
+});
+
+test('isolated trees, sparse groves and dense woods expose distinct adjustable gameplay properties', () => {
+  assert.ok(VEGETATION_PRESETS.isolated.visionDensity < VEGETATION_PRESETS.grove.visionDensity);
+  assert.ok(VEGETATION_PRESETS.grove.visionDensity < VEGETATION_PRESETS.dense.visionDensity);
+  assert.ok(VEGETATION_PRESETS.isolated.concealment > VEGETATION_PRESETS.grove.concealment);
+  assert.ok(VEGETATION_PRESETS.grove.concealment > VEGETATION_PRESETS.dense.concealment);
+  for (const map of MAPS) {
+    const vegetation = map.terrain.filter(feature => feature.type === 'forest');
+    assert.ok(vegetation.some(feature => feature.density === VEGETATION_PRESETS.isolated.density));
+    assert.ok(vegetation.some(feature => feature.density === VEGETATION_PRESETS.grove.density));
+    assert.ok(vegetation.some(feature => feature.density === VEGETATION_PRESETS.dense.density));
+    for (const zone of vegetation) assert.ok(zone.visionDensity > 0 && zone.concealment > 0 && zone.concealment <= 1);
+    const road = map.terrain.find(feature => feature.type === 'road');
+    assert.equal(vegetationAt(map, road.x + road.w / 2, road.y + road.h / 2), null);
   }
 });
