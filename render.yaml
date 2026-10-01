@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: frente-boreal
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev && npm run prepare:assets
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: ALLOWED_ORIGINS
+        value: https://frente-boreal.izanpq17.chatgpt.site
+      - key: MAX_ROOMS
+        value: "8"
+      - key: MAX_CONNECTIONS
+        value: "32"
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
