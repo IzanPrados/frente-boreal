@@ -892,15 +892,19 @@ export function stepGame(game, dt = 0.1) {
   return game;
 }
 
-export function snapshotFor(game, playerId) {
+export function snapshotFor(game, playerId, { revealEnemies = false } = {}) {
   const player = game.players.find(p => p.id === playerId);
   if (!player) throw new Error('Jugador no autorizado');
+  // This permission is fixed when the authoritative game is created. The
+  // viewer preference changes only this projection, never game perception.
+  const reveal = game.config.allowEnemyReveal === true && revealEnemies === true;
   const visible = visibleSet(game, player.team);
   const round = n => Math.round(n * 100) / 100;
-  const units = game.units.filter(u => u.hp > 0 && visible.has(u.id) && (!u.loadedIn || u.team === player.team)).map(u => {
+  const units = game.units.filter(u => u.hp > 0 && (visible.has(u.id) || reveal) && (!u.loadedIn || u.team === player.team)).map(u => {
     const ownTeam = u.team === player.team, data = UNIT_TYPES[u.type];
     return {
       id: u.id, ownerId: u.ownerId, team: u.team, type: u.type, x: round(u.x), y: round(u.y), hp: round(u.hp), maxHp: data.hp,
+      detected: visible.has(u.id), displayOnly: !ownTeam && !visible.has(u.id),
       ammo: ownTeam ? round(u.ammo) : null, maxAmmo: ownTeam ? data.ammo : null,
       suppression: round(u.suppression), heading: round(u.heading), domain: data.domain,
       order: ownTeam ? u.order : null, target: ownTeam && u.target ? { ...u.target } : null,
@@ -917,18 +921,19 @@ export function snapshotFor(game, playerId) {
     const members = buildingMembers(game, building.id);
     const ownMembers = members.filter(unit => unit.team === player.team);
     const detected = members.filter(unit => unit.garrisonedIn === building.id && visible.has(unit.id));
+    const shown = members.filter(unit => unit.garrisonedIn === building.id && (visible.has(unit.id) || reveal));
     const known = ownMembers.length > 0;
     return {
-      id: building.id, team: known ? player.team : detected[0]?.team ?? null,
-      known, observed: detected.length > 0,
-      occupied: known ? ownMembers.filter(unit => unit.garrisonedIn === building.id).length : detected.length || null,
+      id: building.id, team: known ? player.team : shown[0]?.team ?? null,
+      known, observed: detected.length > 0, displayOnly: !known && shown.length > 0 && detected.length === 0,
+      occupied: known ? ownMembers.filter(unit => unit.garrisonedIn === building.id).length : shown.length || null,
       reserved: known ? ownMembers.filter(unit => unit.pendingBuildingId === building.id).length : null,
-      occupantIds: (known ? ownMembers.filter(unit => unit.garrisonedIn === building.id) : detected).map(unit => unit.id),
+      occupantIds: (known ? ownMembers.filter(unit => unit.garrisonedIn === building.id) : shown).map(unit => unit.id),
     };
   });
   return {
     tick: game.tick, time: round(game.time), duration: game.duration, mode: game.mode,
-    config: { ...game.config }, mapId: game.map.id,
+    config: { ...game.config }, mapId: game.map.id, revealEnemies: reveal,
     status: game.status, winner: game.winner, reason: game.reason,
     playerId: player.id, team: player.team, units, buildings,
     players: game.players.map(p => ({ id: p.id, name: p.name, team: p.team, credits: p.team === player.team ? round(p.credits) : null, ai: p.ai, surrendered: p.surrendered, deck: p.id === player.id ? [...p.deck] : undefined })),
