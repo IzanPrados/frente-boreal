@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-01T21:44:25.153Z",
+  "date": "2026-10-01T22:24:09.006Z",
   "browser": "Edge/Chromium",
   "workload": "Synthetic placement of 120 real units; desktop GPU, 6 seconds per map. Not mobile or a full match.",
   "results": [
@@ -10,16 +10,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1418,
-      "fps": 236,
+      "frames": 1420,
+      "fps": 237,
       "frameMs": {
-        "mean": 4.231805359661494,
+        "mean": 4.225845070422535,
         "p95": 4.299999999999727
       },
       "render": {
-        "frame": 1813,
-        "calls": 372,
-        "triangles": 37952,
+        "frame": 1815,
+        "calls": 203,
+        "triangles": 61964,
         "points": 0,
         "lines": 0
       },
@@ -35,16 +35,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1413,
+      "frames": 1411,
       "fps": 235,
       "frameMs": {
-        "mean": 4.246850672328379,
-        "p95": 4.299999999999272
+        "mean": 4.252799433026222,
+        "p95": 4.300000000000182
       },
       "render": {
-        "frame": 1800,
-        "calls": 376,
-        "triangles": 69238,
+        "frame": 1798,
+        "calls": 210,
+        "triangles": 96918,
         "points": 0,
         "lines": 0
       },
@@ -60,16 +60,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1413,
+      "frames": 1408,
       "fps": 235,
       "frameMs": {
-        "mean": 4.246779900920028,
-        "p95": 4.300000000000182
+        "mean": 4.261931818181818,
+        "p95": 4.299999999999727
       },
       "render": {
-        "frame": 1800,
-        "calls": 380,
-        "triangles": 88552,
+        "frame": 1797,
+        "calls": 215,
+        "triangles": 122136,
         "points": 0,
         "lines": 0
       },
@@ -85,16 +85,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1413,
-      "fps": 235,
+      "frames": 1415,
+      "fps": 236,
       "frameMs": {
-        "mean": 4.246779900920028,
-        "p95": 4.299999999999272
+        "mean": 4.24077738515901,
+        "p95": 4.299999999999727
       },
       "render": {
-        "frame": 1799,
-        "calls": 386,
-        "triangles": 150334,
+        "frame": 1798,
+        "calls": 221,
+        "triangles": 216766,
         "points": 0,
         "lines": 0
       },
