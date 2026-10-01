@@ -58,6 +58,14 @@
         </div>
         <span id="timeStatus">Tiempo normal</span>
       </section>
+      <button
+        id="revealEnemies"
+        aria-pressed="false"
+        title="Ayuda visual personal: no cambia la detección ni las reglas de combate"
+        hidden
+      >
+        Mostrar enemigos
+      </button>
       <aside id="deployPanel" class="glass" hidden>
         <div class="panel-title">
           <span>REFUERZOS</span
@@ -195,7 +203,7 @@
           <div class="title-emblem">FB</div>
           <h1>FRENTE<br /><strong>BOREAL</strong></h1>
           <p>Controla el terreno.<br />Conserva tu fuerza.</p>
-          <div class="version">OPERACIONES TÁCTICAS · 0.3</div>
+          <div class="version">OPERACIONES TÁCTICAS · 0.4</div>
         </div>
         <div class="start-content">
           <div class="eyebrow">OPERACIONES / FRENTE BOREAL</div>
@@ -325,6 +333,20 @@
                 required
             /></label>
           </div>
+          <label class="config-check">
+            <input
+              id="configReveal"
+              name="allowEnemyReveal"
+              type="checkbox"
+              aria-describedby="configRevealDescription"
+            />
+            <span>Permitir mostrar tropas enemigas</span>
+          </label>
+          <p id="configRevealDescription" class="muted small">
+            Autoriza a cada jugador a mostrar u ocultar enemigos en su propia
+            pantalla y minimapa. Es una ayuda visual: no cambia la detección, el
+            alcance ni el combate. Este permiso queda bloqueado al empezar.
+          </p>
           <p class="muted small">
             Cada jugador y la IA reciben el mismo saldo inicial, además de su
             fuerza de partida. El multiplicador afecta solo a los ingresos de
@@ -430,6 +452,23 @@
                 recibe protección y dispara desde ventanas válidas. Toca la
                 posición ocupada para ver sus unidades y <b>Salir</b>; una orden
                 <b>Mover</b> también sale y continúa.
+              </p>
+            </div>
+            <div>
+              <h3>Identificación y enemigos mostrados</h3>
+              <p>
+                Azul y rojo identifican los bandos. El círculo indica tropas
+                propias; el cuadrado, aliadas; el rombo, enemigas. El resaltado
+                marca tu selección y los símbolos pequeños distinguen las
+                clases.
+              </p>
+              <p>
+                Si se autorizó antes de empezar, <b>Mostrar enemigos</b> revela
+                tropas solo en tu pantalla y minimapa. Un contorno discontinuo
+                distingue las que no están detectadas. Dentro de edificios se
+                indica la ocupación. La IA, la visión y los disparos conservan
+                sus reglas; <b>Ocultar enemigos</b> devuelve la visibilidad
+                normal.
               </p>
             </div>
             <div>
