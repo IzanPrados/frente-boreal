@@ -895,3 +895,329 @@ Duración: 5.3 s.
 
 **Límites:** estas pruebas usan el navegador del ordenador. Los viewports y contactos táctiles son emulación; no acreditan Safari, instalación desde Inicio, rendimiento de iPhone/iPad ni redes distintas. Offline significa bloqueo de red de este contexto; las capturas están en `docs/screenshots/`.
 
+## Ejecución 2026-10-01T21:53:06.973Z
+
+Servidor: https://frente-boreal.onrender.com. Navegador: Microsoft Edge/Chromium 154.0.4258.48, headless, sin forzar SwiftShader. Adaptador WebGL comunicado: ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11).
+
+### Pasó: UI multijugador 1 contra 1
+
+Duración: 3.2 s.
+
+```json
+{
+  "contexts": 2,
+  "creationJoinReadyStart": true,
+  "largeMap": "frontera-de-los-siete-pasos",
+  "configVisibleToBoth": true,
+  "hostChangesResetReady": true,
+  "sameAuthorityConfig": true,
+  "savedLastConfig": true,
+  "defaultsRestored": true,
+  "movement": {
+    "unitId": "u1",
+    "distance": 27.6
+  },
+  "coherence": {
+    "commonTick": 7,
+    "visibleUnitsFirst": 4,
+    "visibleUnitsSecond": 4
+  },
+  "cooperativeClock": null,
+  "reloadRetainedPlayer": true,
+  "ending": "Rendición termina para ambos",
+  "pageErrors": 0
+}
+```
+
+### Pasó: UI multijugador cooperativo
+
+Duración: 4.6 s.
+
+```json
+{
+  "contexts": 2,
+  "creationJoinReadyStart": true,
+  "largeMap": "frontera-de-los-siete-pasos",
+  "configVisibleToBoth": true,
+  "hostChangesResetReady": true,
+  "sameAuthorityConfig": true,
+  "savedLastConfig": true,
+  "defaultsRestored": true,
+  "movement": {
+    "unitId": "u1",
+    "distance": 27.6
+  },
+  "coherence": {
+    "commonTick": 9,
+    "visibleUnitsFirst": 8,
+    "visibleUnitsSecond": 8
+  },
+  "cooperativeClock": {
+    "bothPlayersControlledTime": true,
+    "guestSpeed": 0.5,
+    "hostSpeed": 2,
+    "pauseFreezesBoth": true,
+    "pauseRetainedOnReconnect": true
+  },
+  "reloadRetainedPlayer": true,
+  "ending": "Retirada permite observar; salida explícita termina sala",
+  "pageErrors": 0
+}
+```
+
+### Pasó: Viewport teléfono 844×390 y gestos táctiles emulados
+
+Duración: 2.2 s.
+
+```json
+{
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "clearMapPercent": 84,
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "touchTargetsAtLeast44px": true,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "selectionKeepsTargetVisible": true,
+  "selectionStripFoldsDuringOrder": true,
+  "saveRecallGroup": true,
+  "cancelMovePreservesSelection": true,
+  "cancelDeployCreatesNothing": true,
+  "pauseRestoresPendingHint": true,
+  "panelCloseAccidentalOrders": 0,
+  "intentionalMoveWorked": true,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: Viewport teléfono vertical 390×844 y gestos táctiles emulados
+
+Duración: 2.3 s.
+
+```json
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "clearMapPercent": 86,
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "touchTargetsAtLeast44px": true,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "selectionKeepsTargetVisible": true,
+  "selectionStripFoldsDuringOrder": true,
+  "saveRecallGroup": true,
+  "cancelMovePreservesSelection": true,
+  "cancelDeployCreatesNothing": true,
+  "pauseRestoresPendingHint": true,
+  "panelCloseAccidentalOrders": 0,
+  "intentionalMoveWorked": true,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: Viewport tableta 1024×768 y gestos táctiles emulados
+
+Duración: 2.4 s.
+
+```json
+{
+  "viewport": {
+    "width": 1024,
+    "height": 768
+  },
+  "clearMapPercent": 93,
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "touchTargetsAtLeast44px": true,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "selectionKeepsTargetVisible": true,
+  "selectionStripFoldsDuringOrder": true,
+  "saveRecallGroup": true,
+  "cancelMovePreservesSelection": true,
+  "cancelDeployCreatesNothing": true,
+  "pauseRestoresPendingHint": true,
+  "panelCloseAccidentalOrders": 0,
+  "intentionalMoveWorked": true,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: Viewport tableta vertical 768×1024 y gestos táctiles emulados
+
+Duración: 2.2 s.
+
+```json
+{
+  "viewport": {
+    "width": 768,
+    "height": 1024
+  },
+  "clearMapPercent": 94,
+  "horizontalOverflow": false,
+  "clippedPanels": 0,
+  "clippedButtons": 0,
+  "touchTargetsAtLeast44px": true,
+  "oneFingerPan": true,
+  "twoFingerZoom": true,
+  "tapSelection": true,
+  "selectionKeepsTargetVisible": true,
+  "selectionStripFoldsDuringOrder": true,
+  "saveRecallGroup": true,
+  "cancelMovePreservesSelection": true,
+  "cancelDeployCreatesNothing": true,
+  "pauseRestoresPendingHint": true,
+  "panelCloseAccidentalOrders": 0,
+  "intentionalMoveWorked": true,
+  "emulation": "Chromium/Edge + CDP; no dispositivo Apple físico ni motor Safari"
+}
+```
+
+### Pasó: Cambiar cuatro mapas entre partidas sin recargar la página
+
+Duración: 2.8 s.
+
+```json
+{
+  "samePage": true,
+  "pageReloads": 0,
+  "maps": [
+    {
+      "mapId": "llanura-del-estuario",
+      "sectors": 9,
+      "overviewZoom": 0.32,
+      "canvasCount": 1
+    },
+    {
+      "mapId": "frontera-de-los-siete-pasos",
+      "sectors": 7,
+      "overviewZoom": 0.47,
+      "canvasCount": 1
+    },
+    {
+      "mapId": "cuenca-del-norte",
+      "sectors": 5,
+      "overviewZoom": 0.61,
+      "canvasCount": 1
+    },
+    {
+      "mapId": "valle-bruma",
+      "sectors": 3,
+      "overviewZoom": 0.89,
+      "canvasCount": 1
+    }
+  ],
+  "cameraMinimapAndObjectivesUpdated": true,
+  "pageErrors": 0
+}
+```
+
+### Pasó: Reloj y ocupación mediante controles táctiles de la interfaz
+
+Duración: 8.5 s.
+
+```json
+{
+  "mapId": "valle-bruma",
+  "buildingId": "town-west-building-1",
+  "rates": [
+    {
+      "speed": 0.5,
+      "gameSeconds": 0.5,
+      "income": 3
+    },
+    {
+      "speed": 1,
+      "gameSeconds": 1.1,
+      "income": 6.6
+    },
+    {
+      "speed": 2,
+      "gameSeconds": 2.4,
+      "income": 14.4
+    }
+  ],
+  "pausedTimeAndEconomyFrozen": true,
+  "twoOrdersQueuedWithoutEffects": true,
+  "selectionAndZoomDuringPause": true,
+  "deploymentOnResumeOnly": true,
+  "garrisonWalkedToDoor": true,
+  "occupiedBuildingPanelAccessible": true,
+  "occupantsShown": 1,
+  "explicitExitQueuedThenExecuted": true,
+  "hpAmmoPreserved": true,
+  "pageErrors": 0,
+  "limitation": "Interacción táctil emulada en Edge; no Safari físico"
+}
+```
+
+### Pasó: Ocupación real en el mapa nuevo y captura de población
+
+Duración: 11.3 s.
+
+```json
+{
+  "mapId": "llanura-del-estuario",
+  "buildingId": "western-rear-market-building-4",
+  "rates": [
+    {
+      "speed": 0.5,
+      "gameSeconds": 0.5,
+      "income": 3
+    },
+    {
+      "speed": 1,
+      "gameSeconds": 1.1,
+      "income": 6.6
+    },
+    {
+      "speed": 2,
+      "gameSeconds": 2.4,
+      "income": 14.4
+    }
+  ],
+  "pausedTimeAndEconomyFrozen": true,
+  "twoOrdersQueuedWithoutEffects": true,
+  "selectionAndZoomDuringPause": true,
+  "deploymentOnResumeOnly": true,
+  "garrisonWalkedToDoor": true,
+  "occupiedBuildingPanelAccessible": true,
+  "occupantsShown": 1,
+  "explicitExitQueuedThenExecuted": true,
+  "hpAmmoPreserved": true,
+  "pageErrors": 0,
+  "limitation": "Interacción táctil emulada en Edge; no Safari físico"
+}
+```
+
+### Pasó: PWA individual tras recarga sin red
+
+Duración: 5.5 s.
+
+```json
+{
+  "loadedInFreshContext": true,
+  "cachedFiles": 23,
+  "missing": 0,
+  "offlineReload": true,
+  "soloMap": "llanura-del-estuario",
+  "soloTick": 31,
+  "pageErrors": 0,
+  "limitation": "Desconexión emulada con Playwright; no modo avión físico"
+}
+```
+
+**Límites:** estas pruebas usan el navegador del ordenador. Los viewports y contactos táctiles son emulación; no acreditan Safari, instalación desde Inicio, rendimiento de iPhone/iPad ni redes distintas. Offline significa bloqueo de red de este contexto; las capturas están en `docs/screenshots/`.
+
