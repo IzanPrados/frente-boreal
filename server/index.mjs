@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createGame, stepGame, applyCommand, snapshotFor } from '../shared/sim.mjs';
+import { validateConfig } from '../shared/config.mjs';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.glb': 'model/gltf-binary', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
@@ -101,6 +102,7 @@ export async function createServer({
   function fail(ws, message) { send(ws, { type: 'error', message }); }
   function roomView(room) {
     return { code: room.code, mode: room.mode, hostId: room.hostId, status: room.status, paused: !!room.paused,
+      config: room.config, configRevision: room.configRevision,
       players: room.players.map(p => ({ id: p.id, name: p.name, team: p.team, ready: p.ready, connected: !!p.ws })) };
   }
   function roomBroadcast(room) { const payload = { type: 'room', room: roomView(room) }; for (const p of room.players) send(p.ws, payload); }
@@ -181,9 +183,12 @@ export async function createServer({
       if (ws.context) { fail(ws, 'Abandona tu sala antes de entrar en otra.'); return; }
       if (message.type === 'create') {
         if (!['solo', 'coop', 'versus'].includes(message.mode)) { fail(ws, 'Modo de juego no válido.'); return; }
+        const checked = validateConfig(message.config);
+        if (!checked.ok) { fail(ws, checked.error); return; }
         if (rooms.size >= maxRooms) { fail(ws, 'El servidor está lleno. Prueba más tarde.'); return; }
         let roomCode; do { roomCode = code(); } while (rooms.has(roomCode));
-        const room = { code: roomCode, mode: message.mode, hostId: null, players: [], status: 'lobby', game: null, paused: false, lastActive: now, lastSnapshot: 0 };
+        const room = { code: roomCode, mode: message.mode, hostId: null, players: [], status: 'lobby', game: null, paused: false,
+          config: checked.config, configRevision: 1, lastActive: now, lastSnapshot: 0 };
         rooms.set(room.code, room);
         newPlayer(ws, room, message);
         return;
@@ -208,6 +213,20 @@ export async function createServer({
     const { room, player } = context;
     room.lastActive = now;
     if (message.type === 'leave') { detach(ws, true); send(ws, { type: 'ended', message: 'Has salido de la sala.' }); return; }
+    if (message.type === 'configure') {
+      if (player.id !== room.hostId) { fail(ws, 'Solo el anfitrión puede cambiar los ajustes.'); return; }
+      if (room.status !== 'lobby') { fail(ws, 'Los ajustes quedan bloqueados al comenzar.'); return; }
+      if (message.config === undefined) { fail(ws, 'Indica los ajustes de la partida.'); return; }
+      const checked = validateConfig(message.config);
+      if (!checked.ok) { fail(ws, checked.error); return; }
+      if (JSON.stringify(checked.config) !== JSON.stringify(room.config)) {
+        room.config = checked.config;
+        room.configRevision++;
+        for (const p of room.players) p.ready = false;
+      }
+      roomBroadcast(room);
+      return;
+    }
     if (message.type === 'team') {
       if (room.status !== 'lobby') { fail(ws, 'Los equipos se eligen antes de empezar.'); return; }
       if (![0, 1].includes(message.team) || (room.mode !== 'versus' && message.team !== 0)) { fail(ws, 'Equipo no válido para este modo.'); return; }
@@ -218,6 +237,7 @@ export async function createServer({
     }
     if (message.type === 'ready') {
       if (room.status !== 'lobby' || typeof message.ready !== 'boolean') { fail(ws, 'No se puede cambiar la preparación ahora.'); return; }
+      if (message.ready && message.configRevision !== room.configRevision) { fail(ws, 'Los ajustes han cambiado. Revísalos antes de marcarte como preparado.'); return; }
       player.ready = message.ready;
       roomBroadcast(room);
       return;
@@ -228,7 +248,8 @@ export async function createServer({
       const required = room.mode === 'solo' ? 1 : 2;
       if (room.players.length !== required || room.players.some(p => !p.ready || !p.ws)) { fail(ws, 'Todos los jugadores deben estar conectados y preparados.'); return; }
       if (room.mode === 'versus' && new Set(room.players.map(p => p.team)).size !== 2) { fail(ws, 'Elegid equipos diferentes para el duelo.'); return; }
-      room.game = createGame({ mode: room.mode, players: room.players.map(({id, name, team, deck}) => ({id, name, team, deck})), seed: randomBytes(4).readUInt32LE(), ...(duration ? { duration } : {}) });
+      room.game = createGame({ mode: room.mode, players: room.players.map(({id, name, team, deck}) => ({id, name, team, deck})), config: room.config, seed: randomBytes(4).readUInt32LE(), ...(duration ? { duration } : {}) });
+      room.config = room.game.config;
       room.status = 'playing';
       room.paused = false;
       roomBroadcast(room);
