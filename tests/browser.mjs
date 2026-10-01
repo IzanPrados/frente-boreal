@@ -9,12 +9,14 @@ import { getMap } from '../shared/maps.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const base = process.env.GAME_URL || 'http://127.0.0.1:8787';
-const screenshotDirectory = resolve(root, 'docs', 'screenshots');
-const reportPath = resolve(root, 'docs', 'PRUEBAS-NAVEGADOR.md');
+const screenshotDirectory = process.env.BROWSER_ARTIFACT_DIR ? resolve(process.env.BROWSER_ARTIFACT_DIR) : resolve(root, 'docs', 'screenshots');
+const reportPath = process.env.BROWSER_ARTIFACT_DIR ? resolve(process.env.BROWSER_ARTIFACT_DIR, 'PRUEBAS-NAVEGADOR.md') : resolve(root, 'docs', 'PRUEBAS-NAVEGADOR.md');
 const results = [];
 const graphics = new Set();
 const offlineOnly = process.argv.includes('--offline-only');
 const skipOffline = process.argv.includes('--skip-offline');
+const terrainOnly = process.argv.includes('--terrain-only');
+const networkOnly = process.argv.includes('--network-only');
 await mkdir(screenshotDirectory, { recursive: true });
 const health = await fetch(`${base}/health`);
 assert.equal(health.status, 200, 'El servidor debe estar ejecutándose antes de la prueba.');
@@ -75,7 +77,7 @@ async function selectedOrders(page) {
 }
 
 async function assertPanelsFolded(page) {
-  for (const id of ['deployPanel', 'mapPanel', 'groupPanel', 'unitPanel']) assert.equal(await page.locator('#' + id).isVisible(), false, `${id} empieza cerrado.`);
+  for (const id of ['deployPanel', 'mapPanel', 'groupPanel', 'unitPanel', 'buildingPanel']) assert.equal(await page.locator('#' + id).isVisible(), false, `${id} empieza cerrado.`);
 }
 
 async function ownUnitPoint(page) {
@@ -186,11 +188,35 @@ async function networkCase(mode) {
     const identities = await Promise.all([a, b].map((page) => page.evaluate(() => window.__FB__.playerId)));
     assert.notEqual(identities[0], identities[1]);
     const movement = await selectAndMove(a);
+    let cooperativeClock = null;
+    if (mode === 'coop') {
+      const change = async (controller, value) => {
+        await controller.locator(`[data-speed="${value}"]`).click();
+        await Promise.all([a, b].map(page => page.waitForFunction(value => value === 0 ? window.__FB__.state.timeControl.paused : !window.__FB__.state.timeControl.paused && window.__FB__.state.timeControl.speed === value, value)));
+      };
+      await change(a, 0);
+      const pausedAt = await a.evaluate(() => ({ tick: window.__FB__.state.tick, time: window.__FB__.state.time, clock: window.__FB__.state.timeControl }));
+      await a.waitForTimeout(350);
+      for (const page of [a, b]) assert.equal(await page.evaluate(() => window.__FB__.state.time), pausedAt.time);
+      await change(b, 0.5);
+      assert.equal(await a.evaluate(() => window.__FB__.state.timeControl.changedBy), identities[1], 'El invitado controla el reloj compartido sin aprobación del anfitrión.');
+      await change(a, 2);
+      assert.equal(await b.evaluate(() => window.__FB__.state.timeControl.changedBy), identities[0]);
+      await change(b, 0);
+      cooperativeClock = { bothPlayersControlledTime: true, guestSpeed: 0.5, hostSpeed: 2, pauseFreezesBoth: true };
+    } else assert.equal(await a.locator('#timeControls').isVisible(), false, 'PvP conserva su reloj normal sin estos controles.');
     const coherence = await checkCoherence(first, second, mode);
     const oldTick = await a.evaluate(() => window.__FB__.state.tick);
     await a.reload({ waitUntil: 'domcontentloaded' });
     await a.waitForFunction(({ id, tick }) => window.__FB__?.playerId === id && window.__FB__?.state?.tick >= tick && !window.__FB__.state.paused && window.__FB__.state.status === 'playing', { id: identities[0], tick: oldTick }, { timeout: 30000 });
     await b.waitForFunction(() => window.__FB__?.state?.status === 'playing' && !window.__FB__.state.paused);
+    if (mode === 'coop') {
+      assert.equal(await a.evaluate(() => window.__FB__.state.timeControl.paused), true, 'Recargar conserva la pausa manual vigente.');
+      assert.equal(await a.evaluate(() => window.__FB__.state.timeControl.changedBy), identities[1]);
+      await b.locator('[data-speed="1"]').click();
+      await Promise.all([a, b].map(page => page.waitForFunction(() => !window.__FB__.state.timeControl.paused && window.__FB__.state.timeControl.speed === 1)));
+      cooperativeClock.pauseRetainedOnReconnect = true;
+    }
     await a.screenshot({ path: resolve(screenshotDirectory, `${mode}-desktop.png`) });
     await a.locator('#menuButton').click();
     await a.locator('#surrenderButton').click();
@@ -204,7 +230,7 @@ async function networkCase(mode) {
       await Promise.all([a.locator('#resultScreen').waitFor({ state: 'visible' }), b.locator('#resultScreen').waitFor({ state: 'visible' })]);
     }
     assert.deepEqual([...first.errors, ...second.errors], []);
-    return { contexts: 2, creationJoinReadyStart: true, largeMap: started.config.mapId, configVisibleToBoth: true, hostChangesResetReady: true, sameAuthorityConfig: true, savedLastConfig: true, defaultsRestored: true, movement, coherence, reloadRetainedPlayer: true, ending: mode === 'coop' ? 'Retirada permite observar; salida explícita termina sala' : 'Rendición termina para ambos', pageErrors: 0 };
+    return { contexts: 2, creationJoinReadyStart: true, largeMap: started.config.mapId, configVisibleToBoth: true, hostChangesResetReady: true, sameAuthorityConfig: true, savedLastConfig: true, defaultsRestored: true, movement, coherence, cooperativeClock, reloadRetainedPlayer: true, ending: mode === 'coop' ? 'Retirada permite observar; salida explícita termina sala' : 'Rendición termina para ambos', pageErrors: 0 };
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }
@@ -217,13 +243,13 @@ async function touchCase(name, viewport) {
   try {
     await boot(page);
     await page.locator('#soloButton').tap();
-    await configure(page);
+    await configure(page, { mapId: name === 'phone-portrait' ? 'llanura-del-estuario' : 'valle-bruma' });
     await playState(page);
     await assertPanelsFolded(page);
     assert.equal(await page.locator('#selectionPanel').isVisible(), false);
     const layout = await page.evaluate(() => {
-      const ids = ['hud', 'gameTools'];
-      const controls = [...document.querySelectorAll('#hud button,#gameTools button')];
+      const ids = ['hud', 'gameTools', 'timeControls'];
+      const controls = [...document.querySelectorAll('#hud button,#gameTools button,#timeControls button')];
       let total = 0, clear = 0;
       for (let y = 10; y < innerHeight; y += 20) for (let x = 10; x < innerWidth; x += 20) {
         total++; if (document.elementFromPoint(x, y)?.closest('#viewport')) clear++;
@@ -334,7 +360,7 @@ async function mapSwitchCase() {
   const evidence = [];
   try {
     await boot(page);
-    for (const mapId of ['frontera-de-los-siete-pasos', 'cuenca-del-norte', 'valle-bruma']) {
+    for (const mapId of ['llanura-del-estuario', 'frontera-de-los-siete-pasos', 'cuenca-del-norte', 'valle-bruma']) {
       const map = getMap(mapId);
       await page.locator('#soloButton').click();
       await configure(page, { mapId });
@@ -370,6 +396,118 @@ async function mapSwitchCase() {
   } finally { await context.close(); }
 }
 
+async function terrainClockCase(mapId = 'valle-bruma') {
+  const map = getMap(mapId);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true, deviceScaleFactor: 1, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const watched = watch(page);
+  const clickUnit = async id => {
+    const point = await page.evaluate(unitId => window.__FB__.projectUnit(window.__FB__.state.units.find(unit => unit.id === unitId)), id);
+    assert(point, 'La unidad conserva un indicador seleccionable.');
+    assert(await page.evaluate(p => !!document.elementFromPoint(p.x, p.y)?.closest('#viewport'), point), 'El indicador de unidad está libre de paneles.');
+    await page.touchscreen.tap(point.x, point.y);
+    await page.waitForFunction(unitId => window.__FB__.selected.includes(unitId), id);
+  };
+  const speed = async value => {
+    await page.locator(`[data-speed="${value}"]`).tap();
+    await page.waitForFunction(value => value === 0 ? window.__FB__.state.timeControl.paused : !window.__FB__.state.timeControl.paused && window.__FB__.state.timeControl.speed === value, value);
+  };
+  const selected = async id => page.evaluate(id => {
+    const state = window.__FB__.state, unit = state.units.find(value => value.id === id);
+    return { time: state.time, tick: state.tick, pending: state.pendingOrders, credits: state.players.find(player => player.id === window.__FB__.playerId).credits, owned: state.units.filter(value => value.ownerId === window.__FB__.playerId).length, unit: unit && { id: unit.id, x: unit.x, y: unit.y, hp: unit.hp, ammo: unit.ammo, order: unit.order, target: unit.target, garrisonedIn: unit.garrisonedIn } };
+  }, id);
+  try {
+    await boot(page);
+    await page.locator('#soloButton').tap();
+    await configure(page, { mapId, resources: 1200, tickets: 1000 });
+    await playState(page);
+    assert.equal(await page.locator('#timeControls').isVisible(), true);
+    const infantryId = await page.evaluate(() => window.__FB__.state.units.find(unit => unit.ownerId === window.__FB__.playerId && unit.type === 'infantry').id);
+    const rates = [];
+    for (const value of [0.5, 1, 2]) {
+      await speed(value);
+      const before = await selected(infantryId);
+      await page.waitForTimeout(1200);
+      const after = await selected(infantryId), elapsed = after.time - before.time;
+      assert(elapsed > value * 0.75 && elapsed < value * 1.65, `El reloj ${value}× progresa al ritmo esperado (${elapsed}s).`);
+      assert(Math.abs(after.credits - before.credits - 6 * elapsed) < 0.05, 'Los ingresos dependen del tiempo de juego a cualquier velocidad.');
+      rates.push({ speed: value, gameSeconds: Math.round(elapsed * 10) / 10, income: Math.round((after.credits - before.credits) * 100) / 100 });
+    }
+    await speed(0);
+    const frozen = await selected(infantryId);
+    await clickUnit(infantryId);
+    await page.locator('[data-order="move"]').tap();
+    const target = await page.evaluate(unit => window.__FB__.project(unit.x + 65, unit.y + 10, 0), frozen.unit);
+    await page.touchscreen.tap(target.x, target.y);
+    await page.waitForFunction(() => window.__FB__.state.pendingOrders === 1);
+    await page.locator('#deployToggle').tap();
+    await page.locator('[data-unit="infantry"]').tap();
+    const deployment = await page.evaluate(spawn => window.__FB__.project(spawn.x + 65, spawn.y + 80, 0), map.spawns[0]);
+    await page.touchscreen.tap(deployment.x, deployment.y);
+    await page.waitForFunction(() => window.__FB__.state.pendingOrders === 2);
+    await page.waitForTimeout(350);
+    const paused = await selected(infantryId);
+    assert.equal(paused.time, frozen.time);
+    assert.equal(paused.tick, frozen.tick);
+    assert.equal(paused.credits, frozen.credits);
+    assert.equal(paused.owned, frozen.owned);
+    assert.deepEqual(paused.unit, frozen.unit, 'Las órdenes preparadas no cambian posición, estado ni órdenes efectivas durante pausa.');
+    const camera = await page.evaluate(() => window.__FB__.camera);
+    const session = await context.newCDPSession(page);
+    const pinch = async (from, to) => {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640 - from, y: 400, id: 1 }, { x: 640 + from, y: 400, id: 2 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 640 - to, y: 400, id: 1 }, { x: 640 + to, y: 400, id: 2 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    await pinch(35, 55);
+    const zoomed = await page.evaluate(() => window.__FB__.camera);
+    assert(zoomed.zoom > camera.zoom, 'El zoom funciona con la simulación detenida.');
+    await pinch(55, 35);
+    await speed(2);
+    await page.waitForFunction(({ id, owned }) => window.__FB__.state.pendingOrders === 0 && window.__FB__.state.units.filter(unit => unit.ownerId === window.__FB__.playerId).length === owned + 1 && window.__FB__.state.units.find(unit => unit.id === id).moving, { id: infantryId, owned: frozen.owned });
+    await speed(0);
+    await page.locator('#focusButton').tap();
+    await clickUnit(infantryId);
+    await page.locator('#unitToggle').tap();
+    await page.locator('[data-order="garrison"]').tap();
+    const building = map.buildings.filter(building => building.occupiable).sort((a, b) => Math.hypot(a.x - map.spawns[0].x, a.y - map.spawns[0].y) - Math.hypot(b.x - map.spawns[0].x, b.y - map.spawns[0].y))[0];
+    assert(building?.occupiable);
+    const roof = await page.evaluate(building => window.__FB__.projectBuilding(building), building);
+    assert(await page.evaluate(point => !!document.elementFromPoint(point.x, point.y)?.closest('#viewport'), roof), 'El edificio puede tocarse sin una hoja encima.');
+    await page.touchscreen.tap(roof.x, roof.y);
+    await page.waitForFunction(() => window.__FB__.state.pendingOrders === 1);
+    const beforeEntry = await selected(infantryId);
+    assert.equal(beforeEntry.unit.garrisonedIn, null, 'Preparar entrada no teletransporta la infantería.');
+    await speed(2);
+    await page.waitForFunction(({ id, buildingId }) => window.__FB__.state.units.find(unit => unit.id === id)?.garrisonedIn === buildingId, { id: infantryId, buildingId: building.id }, { timeout: 20000 });
+    await speed(0);
+    const inside = await selected(infantryId);
+    assert.equal(inside.unit.hp, beforeEntry.unit.hp);
+    assert.equal(inside.unit.ammo, beforeEntry.unit.ammo);
+    const occupiedRoof = await page.evaluate(building => window.__FB__.projectBuilding(building), building);
+    await page.touchscreen.tap(occupiedRoof.x, occupiedRoof.y);
+    assert.equal(await page.locator('#buildingPanel').isVisible(), true, 'Tocar una casa propia ocupada abre su contexto.');
+    assert.equal(await page.locator('#buildingOccupants button').count(), 1);
+    assert.match(await page.locator('#buildingStatus').textContent(), /1 ocupadas/);
+    const panels = await page.evaluate(() => ['deployPanel', 'mapPanel', 'unitPanel', 'groupPanel', 'buildingPanel'].filter(id => !document.getElementById(id).hidden));
+    assert.deepEqual(panels, ['buildingPanel']);
+    await page.locator('#focusButton').tap();
+    await page.screenshot({ path: resolve(screenshotDirectory, `${mapId}-ocupacion-real.png`) });
+    await page.locator('#exitBuilding').tap();
+    await page.waitForFunction(() => window.__FB__.state.pendingOrders === 1);
+    assert.equal((await selected(infantryId)).unit.garrisonedIn, building.id);
+    await speed(0.5);
+    await page.waitForFunction(id => !window.__FB__.state.units.find(unit => unit.id === id)?.garrisonedIn, infantryId);
+    const outside = await selected(infantryId);
+    assert.equal(outside.unit.hp, inside.unit.hp);
+    assert.equal(outside.unit.ammo, inside.unit.ammo);
+    assert(outside.unit.x < building.x || outside.unit.x > building.x + building.w || outside.unit.y < building.y || outside.unit.y > building.y + building.h);
+    await page.screenshot({ path: resolve(screenshotDirectory, 'terreno-edificio-reloj.png') });
+    assert.deepEqual(watched.errors, []);
+    return { mapId, buildingId: building.id, rates, pausedTimeAndEconomyFrozen: true, twoOrdersQueuedWithoutEffects: true, selectionAndZoomDuringPause: true, deploymentOnResumeOnly: true, garrisonWalkedToDoor: true, occupiedBuildingPanelAccessible: true, occupantsShown: 1, explicitExitQueuedThenExecuted: true, hpAmmoPreserved: true, pageErrors: 0, limitation: 'Interacción táctil emulada en Edge; no Safari físico' };
+  } finally { await context.close(); }
+}
+
 async function offlineCase() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'allow' });
   const page = await context.newPage();
@@ -387,17 +525,18 @@ async function offlineCase() {
       return { files: manifest.files.length, missing, paths: manifest.files.map(entry => entry.url), cache: names[names.length - 1] };
     });
     assert.deepEqual(saved.missing, []);
-    for (const path of ['/shared/maps.mjs', '/shared/config.mjs', '/client/solo-worker.mjs']) assert(saved.paths.includes(path), `${path} debe estar disponible también sin conexión.`);
+    for (const path of ['/shared/maps.mjs', '/shared/config.mjs', '/shared/terrain.mjs', '/shared/match-control.mjs', '/client/solo-worker.mjs']) assert(saved.paths.includes(path), `${path} debe estar disponible también sin conexión.`);
     await context.setOffline(true);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.__FB__?.renderStats != null, null, { timeout: 15000 });
     await page.locator('#soloButton').click();
-    await configure(page);
+    await configure(page, { mapId: 'llanura-del-estuario' });
     await page.waitForFunction(() => window.__FB__?.state?.tick > 30, null, { timeout: 15000 });
     const tick = await page.evaluate(() => window.__FB__.state.tick);
     await page.screenshot({ path: resolve(screenshotDirectory, 'solo-offline.png') });
     assert.deepEqual(watched.errors, []);
-    return { loadedInFreshContext: true, cachedFiles: saved.files, missing: 0, offlineReload: true, soloTick: tick, pageErrors: 0, limitation: 'Desconexión emulada con Playwright; no modo avión físico' };
+    assert.equal(await page.evaluate(() => window.__FB__.state.mapId), 'llanura-del-estuario');
+    return { loadedInFreshContext: true, cachedFiles: saved.files, missing: 0, offlineReload: true, soloMap: 'llanura-del-estuario', soloTick: tick, pageErrors: 0, limitation: 'Desconexión emulada con Playwright; no modo avión físico' };
   } finally { await context.close(); }
 }
 
@@ -414,15 +553,22 @@ async function run(name, action) {
 }
 
 try {
-  if (!offlineOnly) {
+  if (!offlineOnly && !terrainOnly) {
     await run('UI multijugador 1 contra 1', () => networkCase('versus'));
     await run('UI multijugador cooperativo', () => networkCase('coop'));
+  }
+  if (!offlineOnly && !terrainOnly && !networkOnly) {
     await run('Viewport teléfono 844×390 y gestos táctiles emulados', () => touchCase('phone', { width: 844, height: 390 }));
     await run('Viewport teléfono vertical 390×844 y gestos táctiles emulados', () => touchCase('phone-portrait', { width: 390, height: 844 }));
     await run('Viewport tableta 1024×768 y gestos táctiles emulados', () => touchCase('tablet', { width: 1024, height: 768 }));
-    await run('Cambiar mapas entre partidas sin recargar la página', mapSwitchCase);
+    await run('Viewport tableta vertical 768×1024 y gestos táctiles emulados', () => touchCase('tablet-portrait', { width: 768, height: 1024 }));
   }
-  if (!skipOffline) await run('PWA individual tras recarga sin red', offlineCase);
+  if (!offlineOnly && !networkOnly) {
+    await run('Cambiar cuatro mapas entre partidas sin recargar la página', mapSwitchCase);
+    await run('Reloj y ocupación mediante controles táctiles de la interfaz', terrainClockCase);
+    await run('Ocupación real en el mapa nuevo y captura de población', () => terrainClockCase('llanura-del-estuario'));
+  }
+  if (!skipOffline && !networkOnly) await run('PWA individual tras recarga sin red', offlineCase);
 } finally {
   await browser.close();
   let exists = true;
