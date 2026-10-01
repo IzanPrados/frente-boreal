@@ -73,8 +73,10 @@ test('forest slows vehicles, stop cancels order and suppression slows movement',
     applyCommand(game, 'alice', { type: 'stop', unitIds: [tank.id] }); const stopped = tank.x; advance(game, 1); assert.equal(tank.x, stopped);
     return distance;
   };
-  assert.ok(run(300, 100) < run(300, 300) * 0.65);
-  assert.ok(run(300, 300, 0.8) < run(300, 300) * 0.5);
+  // The original y=300 comparison now crosses an authored building. Compare a
+  // straight open corridor so this remains a speed test rather than a detour.
+  assert.ok(run(300, 100) < run(300, 200) * 0.65);
+  assert.ok(run(300, 200, 0.8) < run(300, 200) * 0.5);
 });
 
 test('shared allied reconnaissance reveals targets, terrain and smoke conceal them', () => {
