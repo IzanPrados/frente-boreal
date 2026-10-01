@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
+import { Worker as NodeWorker } from 'node:worker_threads';
 import { createServer } from '../server/index.mjs';
 import { Connection } from '../client/network.mjs';
 import { DEFAULT_CONFIG } from '../shared/config.mjs';
@@ -91,6 +92,183 @@ test('dos WebSockets reales comparten duelo, preparación y autoridad de inicio'
   assert.match((await stranger.wait(m => m.type === 'error')).message, /empezado/);
   stranger.send({ type: 'command', seq: 1, playerId: a.identity.playerId, command: { type: 'stop', unitIds: [] } });
   assert.match((await stranger.wait(m => m.type === 'error')).message, /Primero/);
+});
+
+test('permiso de revelado está desactivado por defecto, lo decide el anfitrión antes de iniciar y no admite falsificaciones', { timeout: 10000 }, async t => {
+  const { app, a, b } = await fixture(t, 'coop');
+  assert.equal(a.room.config.allowEnemyReveal, false);
+  b.send({ type: 'reveal', enabled: true });
+  assert.match((await b.wait(message => message.type === 'error')).message, /durante una partida/);
+  b.send({ type: 'configure', config: { ...a.room.config, allowEnemyReveal: true } });
+  assert.match((await b.wait(message => message.type === 'error')).message, /anfitrión/);
+  a.send({ type: 'configure', config: { ...a.room.config, allowEnemyReveal: 'true' } });
+  assert.match((await a.wait(message => message.type === 'error')).message, /verdadero o falso/);
+  const [initial] = await start(a, b);
+  assert.equal(initial.revealEnemies, false);
+  a.send({ type: 'configure', config: { ...a.room.config, allowEnemyReveal: true } });
+  assert.match((await a.wait(message => message.type === 'error')).message, /bloqueados/);
+  for (const connection of [a, b]) {
+    connection.send({ type: 'reveal', enabled: true, config: { allowEnemyReveal: true }, allowEnemyReveal: true, playerId: a.identity.playerId });
+    assert.match((await connection.wait(message => message.type === 'error')).message, /no permite/);
+  }
+  const room = [...app.wss.clients].find(socket => socket.context?.player.id === a.identity.playerId).context.room;
+  assert.equal(room.game.config.allowEnemyReveal, false);
+  assert.ok(room.players.every(player => player.revealEnemies === false));
+  a.discard('state');
+  const normal = (await a.wait(message => message.type === 'state')).state;
+  assert.equal(normal.revealEnemies, false);
+  assert.ok(!normal.units.some(unit => unit.team === 1));
+});
+
+test('el permiso visible de revelado cambia la revisión y obliga a ambos a confirmar las nuevas condiciones', { timeout: 10000 }, async t => {
+  const { a, b } = await fixture(t, 'versus');
+  a.send({ type: 'ready', ready: true, configRevision: 1 });
+  b.send({ type: 'ready', ready: true, configRevision: 1 });
+  await a.wait(message => message.type === 'room' && message.room.players.every(player => player.ready));
+  a.send({ type: 'configure', config: { ...a.room.config, allowEnemyReveal: true } });
+  const changedA = (await a.wait(message => message.type === 'room' && message.room.configRevision === 2)).room;
+  const changedB = (await b.wait(message => message.type === 'room' && message.room.configRevision === 2)).room;
+  assert.deepEqual(changedA.config, changedB.config);
+  assert.equal(changedA.config.allowEnemyReveal, true);
+  assert.ok(changedA.players.every(player => !player.ready));
+  b.send({ type: 'ready', ready: true, configRevision: 1 });
+  assert.match((await b.wait(message => message.type === 'error')).message, /cambiado/);
+  const [startedA, startedB] = await start(a, b);
+  assert.equal(startedA.config.allowEnemyReveal, true);
+  assert.equal(startedB.config.allowEnemyReveal, true);
+  assert.equal(startedA.revealEnemies, false);
+  assert.equal(startedB.revealEnemies, false);
+});
+
+test('cada participante controla su revelado autorizado en PvP y cooperativo; ocultarlo restaura la niebla', { timeout: 10000 }, async t => {
+  for (const mode of ['versus', 'coop']) {
+    const { app, a, b } = await fixture(t, mode, { snapshotMs: 50 }, { allowEnemyReveal: true });
+    const [initialA, initialB] = await start(a, b);
+    assert.equal(initialA.revealEnemies, false); assert.equal(initialB.revealEnemies, false);
+    b.send({ type: 'reveal', enabled: true });
+    const revealedB = (await b.wait(message => message.type === 'state' && message.state.revealEnemies === true)).state;
+    const added = revealedB.units.filter(unit => unit.team !== initialB.team);
+    assert.ok(added.length > 0, 'El participante que no es anfitrión puede activar la ayuda.');
+    assert.ok(added.every(unit => unit.displayOnly === true && unit.detected === false));
+    assert.ok(added.every(unit => unit.ammo === null && unit.target === null), 'La ayuda conserva privados munición y órdenes enemigas.');
+    a.discard('state');
+    const stillNormal = (await a.wait(message => message.type === 'state')).state;
+    assert.equal(stillNormal.revealEnemies, false);
+    assert.ok(!stillNormal.units.some(unit => unit.team !== initialA.team));
+    for (const enabled of [null, 'true', 1]) {
+      b.send({ type: 'reveal', enabled });
+      assert.match((await b.wait(message => message.type === 'error')).message, /verdadero o falso/);
+    }
+    a.send({ type: 'reveal', enabled: true });
+    assert.equal((await a.wait(message => message.type === 'state' && message.state.revealEnemies === true)).state.revealEnemies, true);
+    b.discard('state');
+    b.send({ type: 'reveal', enabled: false });
+    const hiddenB = (await b.wait(message => message.type === 'state' && message.state.revealEnemies === false && message.state.tick >= revealedB.tick)).state;
+    assert.ok(!hiddenB.units.some(unit => unit.team !== initialB.team));
+    assert.ok(hiddenB.units.every(unit => !unit.displayOnly));
+    const room = [...app.wss.clients].find(socket => socket.context?.player.id === a.identity.playerId).context.room;
+    assert.equal(room.players.find(player => player.id === a.identity.playerId).revealEnemies, true);
+    assert.equal(room.players.find(player => player.id === b.identity.playerId).revealEnemies, false);
+    assert.equal(room.game.config.allowEnemyReveal, true);
+  }
+});
+
+test('revelado conserva reloj y simulación, respeta ocupación de edificios y recupera la preferencia al reconectar', { timeout: 10000 }, async t => {
+  const { app, a, b } = await fixture(t, 'coop', { snapshotMs: 50 }, { allowEnemyReveal: true, mapId: 'llanura-del-estuario' });
+  await start(a, b);
+  b.send({ type: 'time', speed: 0 });
+  const paused = (await a.wait(message => message.type === 'state' && message.state.timeControl?.paused)).state;
+  const room = [...app.wss.clients].find(socket => socket.context?.player.id === a.identity.playerId).context.room;
+  const game = room.game;
+  // A hidden occupied position is arranged inside the actual authoritative
+  // process; visibility changes and reconnection still use the real TCP path.
+  const building = game.map.buildings.find(value => value.capacity > 0 && value.x > game.map.width * .65);
+  const enemy = game.units.find(unit => unit.ownerId === 'ai' && unit.type === 'infantry');
+  Object.assign(enemy, { x: building.x + building.w / 2, y: building.y + building.h / 2, garrisonedIn: building.id, pendingBuildingId: null, order: 'stop', path: [], target: null });
+  const before = structuredClone(game);
+  a.send({ type: 'reveal', enabled: true });
+  const shown = (await a.wait(message => message.type === 'state' && message.state.revealEnemies === true)).state;
+  const occupant = shown.units.find(unit => unit.id === enemy.id);
+  assert.equal(occupant.garrisonedIn, building.id);
+  assert.equal(occupant.displayOnly, true); assert.equal(occupant.detected, false);
+  const indication = shown.buildings.find(value => value.id === building.id);
+  assert.equal(indication.occupied, 1); assert.equal(indication.reserved, null);
+  assert.equal(indication.displayOnly, true); assert.equal(indication.observed, false);
+  assert.deepEqual(indication.occupantIds, [enemy.id]);
+  assert.deepEqual(shown.timeControl, paused.timeControl);
+  assert.equal(shown.tick, paused.tick);
+  assert.deepEqual(game, before, 'Revelar no modifica percepción, objetivos, IA, economía ni reloj de la simulación.');
+  await a.disconnect();
+  await b.wait(message => message.type === 'state' && message.state.paused);
+  const recovered = await client(app.address.url);
+  recovered.send({ type: 'resume', code: a.identity.code, token: a.identity.token, revealEnemies: false });
+  await recovered.wait(message => message.type === 'welcome');
+  const restored = (await recovered.wait(message => message.type === 'state' && !message.state.paused)).state;
+  assert.equal(restored.revealEnemies, true, 'El servidor recupera la preferencia de la plaza; no toma un valor falso del mensaje de recuperación.');
+  assert.deepEqual(restored.timeControl, paused.timeControl);
+  recovered.send({ type: 'reveal', enabled: false });
+  const hidden = (await recovered.wait(message => message.type === 'state' && message.state.revealEnemies === false)).state;
+  assert.ok(!hidden.units.some(unit => unit.team === 1));
+  const concealed = hidden.buildings.find(value => value.id === building.id);
+  assert.equal(concealed.team, null); assert.equal(concealed.occupied, null); assert.equal(concealed.reserved, null);
+  assert.deepEqual(concealed.occupantIds, []);
+  assert.equal(concealed.displayOnly, false); assert.equal(concealed.observed, false);
+  assert.deepEqual(game, before, 'Ocultar tampoco cambia ningún estado jugable.');
+});
+
+test('trabajador individual valida el permiso y el tipo, conserva la pausa y reinicia la ayuda al empezar otra partida', { timeout: 10000 }, async t => {
+  const workerUrl = new URL('../client/solo-worker.mjs', import.meta.url).href;
+  const source = `import { parentPort } from 'node:worker_threads';
+    globalThis.self = globalThis;
+    globalThis.postMessage = value => parentPort.postMessage(value);
+    const backlog = [];
+    parentPort.on('message', data => typeof self.onmessage === 'function' ? self.onmessage({ data }) : backlog.push(data));
+    await import(${JSON.stringify(workerUrl)});
+    for (const data of backlog) self.onmessage({ data });`;
+  const worker = new NodeWorker(new URL('data:text/javascript,' + encodeURIComponent(source)), { type: 'module' });
+  t.after(() => worker.terminate());
+  const inbox = [], requests = new Set();
+  worker.on('message', message => {
+    for (const request of requests) if (request.predicate(message)) { requests.delete(request); clearTimeout(request.timer); request.resolve(message); return; }
+    inbox.push(message);
+  });
+  const wait = predicate => {
+    const index = inbox.findIndex(predicate);
+    if (index >= 0) return Promise.resolve(inbox.splice(index, 1)[0]);
+    return new Promise((resolve, reject) => {
+      const request = { predicate, resolve, timer: setTimeout(() => { requests.delete(request); reject(new Error('El trabajador no devolvió el estado esperado.')); }, 3000) };
+      requests.add(request);
+    });
+  };
+  const discardStates = () => { for (let index = inbox.length - 1; index >= 0; index--) if (inbox[index].type === 'state') inbox.splice(index, 1); };
+  worker.postMessage({ type: 'reveal', enabled: true });
+  assert.match((await wait(message => message.type === 'error')).message, /durante una partida/);
+  worker.postMessage({ type: 'start', name: 'Prueba local' });
+  assert.equal((await wait(message => message.type === 'state')).state.revealEnemies, false);
+  worker.postMessage({ type: 'reveal', enabled: true, config: { allowEnemyReveal: true } });
+  assert.match((await wait(message => message.type === 'error')).message, /no permite/);
+  worker.postMessage({ type: 'start', name: 'Prueba local', config: { allowEnemyReveal: true } });
+  await wait(message => message.type === 'state' && message.state.config.allowEnemyReveal);
+  worker.postMessage({ type: 'time', speed: 0 });
+  const paused = (await wait(message => message.type === 'state' && message.state.timeControl.paused)).state;
+  worker.postMessage({ type: 'reveal', enabled: 'true' });
+  assert.match((await wait(message => message.type === 'error')).message, /verdadero o falso/);
+  worker.postMessage({ type: 'reveal', enabled: true });
+  const revealed = (await wait(message => message.type === 'state' && message.state.revealEnemies)).state;
+  assert.equal(revealed.tick, paused.tick); assert.deepEqual(revealed.timeControl, paused.timeControl);
+  assert.ok(revealed.units.some(unit => unit.team === 1 && unit.displayOnly));
+  discardStates();
+  worker.postMessage({ type: 'reveal', enabled: false });
+  const hidden = (await wait(message => message.type === 'state' && !message.state.revealEnemies && message.state.timeControl.paused)).state;
+  assert.ok(!hidden.units.some(unit => unit.team === 1));
+  worker.postMessage({ type: 'command', command: { type: 'surrender' } });
+  await wait(message => message.type === 'state' && message.state.status === 'finished');
+  worker.postMessage({ type: 'reveal', enabled: true });
+  assert.match((await wait(message => message.type === 'error')).message, /durante una partida/);
+  discardStates();
+  worker.postMessage({ type: 'start', name: 'Nueva operación' });
+  const restarted = (await wait(message => message.type === 'state' && message.state.status === 'playing' && !message.state.config.allowEnemyReveal)).state;
+  assert.equal(restarted.revealEnemies, false);
 });
 
 test('anfitrión sincroniza ajustes; los cambios invalidan preparación y se bloquean al empezar', { timeout: 10000 }, async t => {
