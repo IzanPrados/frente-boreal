@@ -8,7 +8,7 @@ Publicación real en Render Free, Frankfurt. No hace falta dejar encendido tu or
 
 En el ordenador de esta entrega también puedes abrir `Iniciar-juego.cmd`: usa Node ya disponible y escucha solo en este equipo. Si arrancas desde una copia nueva, instala primero las dependencias como se indica debajo.
 
-La versión 0.3 añade edificios sólidos y ocupables, vegetación diferenciada, pausa y velocidades compartidas en cooperativo, y un cuarto mapa de 4800 × 3000. Conserva la interfaz contextual, el combate automático durante el movimiento y los ajustes de partida compartidos. El registro de implementación, pruebas y límites está en [docs/ESTADO.md](docs/ESTADO.md).
+La versión 0.4 amplía moderadamente visión y disparo de infantería, añade revelado personal autorizado antes de la partida y mejora los modelos 3D de edificios y de las nueve clases de unidades. Conserva los cuatro mapas, ocupación, combate durante el movimiento, pausa, velocidades y ajustes compartidos. El registro de implementación, pruebas y límites está en [docs/ESTADO.md](docs/ESTADO.md).
 
 ## Ejecutar en tu ordenador
 
@@ -37,33 +37,48 @@ Si utilizas pnpm, el proyecto incluye `pnpm-lock.yaml`: puedes instalar con `pnp
 
 Antes de iniciar o crear una sala se eligen recursos iniciales (0–10000), ingresos (0,5× / 1× / 2× / 3× / 5×), límite total de unidades (24–120), duración (3–60 minutos), puntos (100–2000) y escenario. El saldo inicial se añade a las tropas de partida; el multiplicador afecta solo a los 6 recursos por segundo, con las mismas reglas para cada humano y la IA. Los precios permanecen iguales. El botón de restauración recupera 410 recursos, 1×, 120 unidades, 12 minutos y 300 puntos.
 
-| Escenario | Tamaño | Objetivos |
-|---|---|---:|
-| Valle de la Bruma | Compacto · 1600 × 1000 | 3 |
-| Cuenca del Norte | Mediano · 2400 × 1600 | 5 |
-| Frontera de los Siete Pasos | Grande · 3200 × 2000 | 7 |
-| Llanura del Estuario | Extenso · 4800 × 3000 | 9 |
+| Escenario                   | Tamaño                 | Objetivos |
+| --------------------------- | ---------------------- | --------: |
+| Valle de la Bruma           | Compacto · 1600 × 1000 |         3 |
+| Cuenca del Norte            | Mediano · 2400 × 1600  |         5 |
+| Frontera de los Siete Pasos | Grande · 3200 × 2000   |         7 |
+| Llanura del Estuario        | Extenso · 4800 × 3000  |         9 |
 
 Cada tamaño tiene un trazado propio. El Estuario tiene 2,25 veces la superficie del mayor anterior, 96 edificios, 84 ocupables, poblaciones conectadas y cinco puentes. Los tres mapas anteriores se conservan y mejoran. Las carreteras aceleran; vegetación, humo y paredes afectan a la visión. El agua se cruza por pasos transitables. En sala, todos ven los ajustes del anfitrión antes de prepararse. Cualquier cambio cancela la preparación de ambos; al empezar quedan bloqueados. La última configuración se guarda en el dispositivo.
 
 ### Controles
 
-| Acción | Táctil y ratón |
-|---|---|
-| Mover cámara | Arrastrar el mapa. |
-| Zoom | Pellizcar con dos dedos; rueda del ratón o botones + y − en «Mapa». «Vista general» encuadra todo el escenario. |
-| Seleccionar | Tocar una unidad propia. «＋▣» permite añadir varias. |
-| Guardar grupo | Abrir «Grupos», «Guardar selección» y después 1, 2 o 3. Tocar el número recupera el grupo. |
-| Dar orden | Seleccionar tropas, elegir «Mover» o «Avanzar y atacar» y tocar el destino. |
-| Embarcar | Seleccionar infantería, elegir «Embarcar» y tocar un transporte propio cercano. |
-| Refuerzos | Elegir una unidad y colocarla dentro de tu zona de despliegue. |
-| Más acciones y estadísticas | Botón «•••» de la selección; estadísticas bajo demanda. |
-| Cancelar orden pendiente | Tocar «Cancelar ×» o Escape, antes de elegir destino. |
-| Ocupar edificio | Seleccionar infantería, tocar un edificio compatible y pulsar «Entrar». También está en «•••». |
-| Ver ocupantes y salir | Tocar la posición ocupada; seleccionar una unidad propia del panel o pulsar «Salir». Mover desde dentro ordena salir y continuar. |
-| Pausa y velocidad | «Ⅱ», «0,5×», «1×» y «2×». Disponible contra IA y cooperativo; cualquiera de los compañeros controla el reloj. |
+| Acción                      | Táctil y ratón                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Mover cámara                | Arrastrar el mapa.                                                                                                                               |
+| Zoom                        | Pellizcar con dos dedos; rueda del ratón o botones + y − en «Mapa». «Vista general» encuadra todo el escenario.                                  |
+| Seleccionar                 | Tocar una unidad propia. «＋▣» permite añadir varias.                                                                                            |
+| Guardar grupo               | Abrir «Grupos», «Guardar selección» y después 1, 2 o 3. Tocar el número recupera el grupo.                                                       |
+| Dar orden                   | Seleccionar tropas, elegir «Mover» o «Avanzar y atacar» y tocar el destino.                                                                      |
+| Embarcar                    | Seleccionar infantería, elegir «Embarcar» y tocar un transporte propio cercano.                                                                  |
+| Refuerzos                   | Elegir una unidad y colocarla dentro de tu zona de despliegue.                                                                                   |
+| Más acciones y estadísticas | Botón «•••» de la selección; estadísticas bajo demanda.                                                                                          |
+| Cancelar orden pendiente    | Tocar «Cancelar ×» o Escape, antes de elegir destino.                                                                                            |
+| Ocupar edificio             | Seleccionar infantería, tocar un edificio compatible y pulsar «Entrar». También está en «•••».                                                   |
+| Ver ocupantes y salir       | Tocar la posición ocupada; seleccionar una unidad propia del panel o pulsar «Salir». Mover desde dentro ordena salir y continuar.                |
+| Pausa y velocidad           | «Ⅱ», «0,5×», «1×» y «2×». Disponible contra IA y cooperativo; cualquiera de los compañeros controla el reloj.                                    |
+| Mostrar enemigos            | Autorizar «Permitir mostrar tropas enemigas» antes de empezar. Durante la partida, «Mostrar enemigos» / «Ocultar enemigos» cambia solo tu vista. |
 
 Mover y Avanzar y atacar detienen la unidad ante un enemigo válido, conservan el destino y continúan al perder el objetivo; no persiguen fuera de alcance. «Alto» cancela el destino. El humo es una habilidad y conserva la ruta. Arrastrar mueve la cámara aunque haya una orden seleccionada. Los paneles se abren de uno en uno; funcionan en horizontal y vertical.
+
+### Alcances e identificación
+
+La infantería pasa de **150 a 185** de alcance y de **205 a 250** de visión, en unidades de mapa. Mantiene velocidad 35, daño y precios; las otras ocho clases conservan sus estadísticas. La visión excede el alcance de tiro y sigue limitada por terreno, humo y paredes. Son valores de equilibrio propios, no estadísticas oficiales de WARNO. Se ajustan en `UNIT_TYPES.infantry` de `shared/data.mjs`.
+
+Las siluetas y bandas pintadas ayudan a distinguir las nueve clases. Los símbolos compactos usan círculo para tropas propias, cuadrado para aliadas y rombo para enemigas, con azul/rojo según bando. El borde discontinuo indica un enemigo añadido solo por la ayuda visual. La selección tiene un contorno claro; nombres y salud se reservan para las unidades seleccionadas. Solo existe una clase funcional de infantería de línea; los detalles de su escuadra no añaden especialidades nuevas.
+
+### Permiso para mostrar enemigos
+
+Está desactivado por defecto. En individual se decide antes de empezar; online lo configura el anfitrión y todos lo ven antes de prepararse. Cambiarlo desmarca la preparación; al comenzar queda bloqueado. Las preferencias antiguas y «Restaurar valores» usan desactivado.
+
+Si está permitido, cada participante puede mostrar enemigos en el campo y minimapa, también en PvP. El estado personal se conserva al reconectar y empieza apagado en una partida nueva. Puede cambiarse durante una pausa. Ocultar elimina las unidades y ocupaciones que no correspondan a la detección normal; no conserva una memoria de posiciones actualizadas.
+
+El revelado no modifica la visión real, la percepción de la IA ni los blancos válidos. No aumenta armas ni atraviesa paredes. Los ocupantes enemigos se representan como una posición ocupada, sin soldados fuera del edificio; las reservas y órdenes rivales siguen ocultas. La artillería conserva sus reglas normales de fuego indirecto manual.
 
 ### Terreno y ocupación
 
@@ -81,21 +96,21 @@ La pausa mantiene cámara, zoom, selección y consulta de información. Las órd
 
 Un proceso Node mantiene el estado válido de la partida y ejecuta su IA. Los clientes envían órdenes; el servidor valida propietario, recursos y reglas antes de aplicarlas. Cada equipo recibe su visibilidad. Las partidas compartidas necesitan una conexión WebSocket con ese servidor.
 
-| Situación | Qué permite |
-|---|---|
-| Dos pestañas en `127.0.0.1` | Verificar comunicación real entre clientes en el mismo ordenador. |
-| Dos dispositivos de una red local | Requiere que el propietario configure deliberadamente una dirección LAN. No demuestra acceso desde redes distintas. |
-| Dos dispositivos en redes distintas | Requiere publicar el servidor y el cliente, o conectar el cliente a un servidor público autorizado. |
-| PWA sin Internet | Modo individual tras una primera descarga completa. No conecta a otro jugador. |
+| Situación                           | Qué permite                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Dos pestañas en `127.0.0.1`         | Verificar comunicación real entre clientes en el mismo ordenador.                                                   |
+| Dos dispositivos de una red local   | Requiere que el propietario configure deliberadamente una dirección LAN. No demuestra acceso desde redes distintas. |
+| Dos dispositivos en redes distintas | Requiere publicar el servidor y el cliente, o conectar el cliente a un servidor público autorizado.                 |
+| PWA sin Internet                    | Modo individual tras una primera descarga completa. No conecta a otro jugador.                                      |
 
 Si se pierde temporalmente un participante, la partida compartida se pausa y permite recuperar la conexión hasta 90 segundos. Las salas viven en memoria: si se reinicia el servidor, la sala se pierde y hay que crear otra. No hay cuentas obligatorias para los jugadores.
 
 Variables disponibles del servidor:
 
-| Variable | Valor predeterminado | Uso |
-|---|---|---|
-| `HOST` | `127.0.0.1` | Interfaz de escucha. El alojamiento público necesita `0.0.0.0`. |
-| `PORT` | `8787` | Puerto; Render proporciona el suyo. |
+| Variable          | Valor predeterminado      | Uso                                                                                |
+| ----------------- | ------------------------- | ---------------------------------------------------------------------------------- |
+| `HOST`            | `127.0.0.1`               | Interfaz de escucha. El alojamiento público necesita `0.0.0.0`.                    |
+| `PORT`            | `8787`                    | Puerto; Render proporciona el suyo.                                                |
 | `ALLOWED_ORIGINS` | Política del mismo origen | Lista de orígenes exactos separados por comas si se aloja el cliente por separado. |
 
 Cambiar `HOST` a `0.0.0.0` en tu ordenador permite conexiones desde otras interfaces y requiere una decisión expresa del propietario. Este proyecto no abre puertos del router ni modifica reglas de seguridad.
