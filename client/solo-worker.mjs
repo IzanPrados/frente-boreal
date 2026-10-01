@@ -7,9 +7,10 @@ let suspended = false;
 let timer = null;
 let clock = null;
 let lastStepAt = 0;
+let revealEnemies = false;
 
 function publishState() {
-  postMessage({ type: 'state', state: { ...snapshotFor(game, 'local'), timeControl: timeControlSnapshot(clock), pendingOrders: pendingOrderCount(clock, 'local') } });
+  postMessage({ type: 'state', state: { ...snapshotFor(game, 'local', { revealEnemies }), timeControl: timeControlSnapshot(clock), pendingOrders: pendingOrderCount(clock, 'local') } });
 }
 
 self.onmessage = ({ data }) => {
@@ -24,6 +25,7 @@ self.onmessage = ({ data }) => {
         seed: Date.now() >>> 0,
       });
       suspended = false;
+      revealEnemies = false;
       clock = createMatchControl(game);
       lastStepAt = performance.now();
       timer = setInterval(() => {
@@ -42,6 +44,12 @@ self.onmessage = ({ data }) => {
       const result = setMatchSpeed(game, clock, 'local', data.speed);
       if (!result.ok) postMessage({ type: 'error', message: result.error });
       else { lastStepAt = performance.now(); publishState(); }
+    } else if (data.type === 'reveal') {
+      if (!game || game.status !== 'playing') { postMessage({ type: 'error', message: 'Solo puedes cambiar esta visualización durante una partida.' }); return; }
+      if (typeof data.enabled !== 'boolean') { postMessage({ type: 'error', message: 'La opción de mostrar enemigos necesita verdadero o falso.' }); return; }
+      if (game.config.allowEnemyReveal !== true) { postMessage({ type: 'error', message: 'Esta partida no permite mostrar tropas enemigas.' }); return; }
+      revealEnemies = data.enabled;
+      publishState();
     } else if (data.type === 'pause') {
       // Menu/background suspension is independent of the shared manual clock.
       suspended = data.paused === true;
