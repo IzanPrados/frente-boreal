@@ -31,6 +31,7 @@ Cliente → servidor, JSON de texto:
 | `ready` | `ready: boolean`, `configRevision`; para prepararse debe coincidir con la revisión actual recibida. Desmarcarse no exige revisión. |
 | `start` | Solo el anfitrión, todas las plazas ocupadas, conectadas y preparadas. Duelo exige equipos distintos. |
 | `command` | `seq` entero creciente y `command` según el contrato de simulación. |
+| `time` | `speed: 0/0.5/1/2`; pausa o cambia la velocidad. Cualquier participante activo de cooperativo puede enviarlo, igual que el jugador individual. PvP lo rechaza. |
 | `resume` | `code`, `token`; recupera su identidad y sus confirmaciones anteriores. |
 | `leave` | Libera la plaza; durante una partida finaliza la sesión para todos. |
 
@@ -40,12 +41,13 @@ Servidor → cliente:
 | --- | --- |
 | `welcome` | `playerId`, `token`, `code`; guardar la credencial actualizada. |
 | `room` | `room: {code,mode,hostId,status,paused,config,configRevision,players:[{id,name,team,ready,connected}]}`. |
-| `state` | `state` de `snapshotFor(game,playerId)`, más `paused`, `pauseReason`, `reconnectDeadline`. |
-| `ack` | `seq`, `ok`, `error` opcional. |
+| `state` | `state` de `snapshotFor(game,playerId)`, más `paused`, `pauseReason`, `reconnectDeadline`, `timeControl` y `pendingOrders`. |
+| `ack` | `seq`, `ok`, `error` opcional. `queued: true` significa que la orden está preparada para reanudar. |
+| `commandResult` | Resultado definitivo de una orden preparada: `seq`, `ok`, `queued: false`, `error` opcional. |
 | `error` | `message` legible en español. |
 | `ended` | `message`; la sala o la conexión del jugador ya no mantienen esa sesión. |
 
-El servidor ignora identidades suministradas en una orden: utiliza la sesión del WebSocket. No acepta órdenes antes del inicio, durante la pausa ni después del final. Cada jugador conserva las 256 últimas confirmaciones: reenviar el mismo `seq` devuelve su confirmación sin ejecutar otra vez el gasto o la orden. Secuencias anteriores a esa ventana se rechazan. El cliente debe conservar el contador al reconectar, repetir una orden pendiente con su mismo `seq` y usar un número superior para una nueva orden.
+El servidor ignora identidades suministradas en una orden: utiliza la sesión del WebSocket. No acepta órdenes antes del inicio, durante la interrupción por desconexión ni después del final. Durante la pausa manual sí permite prepararlas sin efectos jugables. Cada jugador conserva las 256 últimas confirmaciones: reenviar el mismo `seq` devuelve su confirmación sin ejecutar otra vez el gasto o la orden. Secuencias anteriores a esa ventana se rechazan. El cliente debe conservar el contador al reconectar, repetir una orden pendiente con su mismo `seq` y usar un número superior para una nueva orden.
 
 ## Ajustes compartidos
 
@@ -66,9 +68,38 @@ Cada sala empieza con `configRevision: 1`. Un cambio efectivo aumenta la revisi�
 
 El servidor mantiene la ruta pendiente de cada unidad, escoge el objetivo, interrumpe el movimiento, resuelve los disparos y reanuda el trayecto. Los clientes no calculan otro combate. Los estados de unidades del propio equipo incluyen `combatPaused` y `combatTargetId`, junto a la orden y el destino pendiente; la vista rival sigue ocultando órdenes y datos tácticos privados.
 
+## Edificios y privacidad
+
+Las órdenes nuevas usan el mismo canal `command`, con su secuencia y propietario autenticado:
+
+- `{type: 'garrison', unitIds, buildingId}`: solicita una plaza para cada escuadra de infantería y una ruta hasta un acceso válido. La simulación reserva las plazas en orden autoritativo; ocupar exige completar el desplazamiento. No se permite compartir edificio entre enemigos.
+- `{type: 'exit', unitIds}`: cancela la entrada pendiente o saca las tropas a posiciones exteriores transitables. Una orden `move` desde dentro realiza la salida antes de recorrer su destino.
+
+El mapa público define la geometría, los accesos y la capacidad estática de cada edificio. `state.buildings` contiene `id`, `team`, `known`, `observed`, `occupied`, `reserved` y `occupantIds`. Las reservas y las plazas aliadas se comparten dentro del equipo. Un edificio sin reclamación aliada ni ocupantes enemigos detectados devuelve los datos dinámicos como `null`, indicadores falsos e identificadores vacíos; no se distingue así entre vacío y enemigo oculto. La información rival detectada se limita a los ocupantes visibles y no revela sus reservas. `known` indica reclamación aliada; `observed` indica ocupantes detectados.
+
+Las unidades visibles incluyen `garrisonedIn`; `pendingBuildingId` solo se entrega al propio equipo. Los eventos de entrada y salida enemigos requieren que la unidad esté detectada. Las respuestas de entrada no distinguen entre capacidad agotada, reclamación hostil y acceso no disponible: no proporcionan un contador oculto como vía alternativa de reconocimiento.
+
+## Tiempo y órdenes preparadas
+
+`shared/match-control.mjs` gobierna el reloj tanto en el servidor como en el trabajador individual. `timeControl` vale `null` en PvP. En los modos contra IA contiene:
+
+```js
+{ paused, speed, lastSpeed, revision, changedBy, changedByName }
+```
+
+`speed` es cero durante la pausa; `lastSpeed` conserva la última velocidad positiva. Toda solicitud válida aumenta `revision` y registra la identidad y nombre del jugador autenticado. El proceso del servidor decide el orden de solicitudes concurrentes y transmite inmediatamente el mismo resultado a ambos participantes. Cambiar a 0,5×, 1× o 2× reanuda. No existe restricción al anfitrión para estos controles.
+
+Cada paso de simulación sigue siendo de 0,1 segundos de juego. Un acumulador decide cuántos corresponden al tiempo real y a la velocidad; todos los sistemas reciben ese mismo paso, incluidos ingresos, recargas, proyectiles, decisiones de IA, captura y duración de la partida. Cambiar velocidad no cambia los ingresos por minuto de juego ni vuelve a aplicar el multiplicador económico.
+
+Durante la pausa manual, las órdenes jugables se validan primero por formato y propiedad y se guardan en una cola con un máximo de 64 por jugador. No crean unidades, reservan edificios, gastan recursos, despliegan humo ni cambian rutas todavía. Al primer paso de juego después de reanudar se aplican en el orden recibido y se ejecuta su validación completa. Puede fallar una orden preparada, por ejemplo si otras órdenes ya gastaron el presupuesto; se comunica con `commandResult`. Una orden posterior de movimiento o de detenerse sustituye a la anterior al aplicarse. `pendingOrders` cuenta únicamente las órdenes del receptor. Los reintentos con el mismo `seq` no duplican la cola, y su confirmación guardada se actualiza con el resultado final.
+
+Rendirse y salir de la sesión permanecen disponibles como decisiones explícitas para terminar la participación, incluso con el reloj detenido. Son distintas de preparar una acción jugable.
+
+La pausa de conexión (`state.paused`) es independiente de la pausa manual (`state.timeControl.paused`). Reconectar conserva el reloj, su revisión y las órdenes preparadas. Ping, mensajes, estados y reconexión continúan mientras está pausada la simulación. El menú o el segundo plano individual suspenden además el trabajador sin borrar la velocidad manual. Al reanudar no se acumula el tiempo suspendido: se reinicia el intervalo y el resto del acumulador. Los retrasos de planificación superiores a un segundo se descartan; los menores se limitan a 0,25 segundos reales y a cinco pasos por actualización.
+
 ## Ritmo, niebla y conexión
 
-- Simulación: paso fijo de 100 ms. El estado se transmite cada 200 ms; no se recupera tiempo perdido mediante saltos grandes.
+- Simulación: paso fijo de 100 ms de juego, con ritmo 0,5× / 1× / 2× en modos contra IA y 1× en PvP. El estado se transmite cada 200 ms reales, también en pausa; no se recupera tiempo perdido mediante saltos grandes.
 - Cada cliente recibe exclusivamente `snapshotFor` de su identidad. La simulación decide qué enemigos y eventos puede ver su equipo.
 - Una desconexión conocida pausa toda la partida. Se concede un plazo de 90 segundos por defecto. Los demás reciben el motivo y una fecha límite Unix en milisegundos.
 - Al reanudar se rota el token y se invalida cualquier WebSocket anterior de esa plaza. Guardar siempre el nuevo `welcome`.
