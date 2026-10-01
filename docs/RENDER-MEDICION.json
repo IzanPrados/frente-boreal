@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-01T20:57:28.746Z",
+  "date": "2026-10-01T21:44:25.153Z",
   "browser": "Edge/Chromium",
   "workload": "Synthetic placement of 120 real units; desktop GPU, 6 seconds per map. Not mobile or a full match.",
   "results": [
@@ -10,16 +10,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1440,
-      "fps": 240,
+      "frames": 1418,
+      "fps": 236,
       "frameMs": {
-        "mean": 4.167152777777777,
-        "p95": 4.300000000000182
+        "mean": 4.231805359661494,
+        "p95": 4.299999999999727
       },
       "render": {
-        "frame": 1833,
-        "calls": 369,
-        "triangles": 24632,
+        "frame": 1813,
+        "calls": 372,
+        "triangles": 37952,
         "points": 0,
         "lines": 0
       },
@@ -35,16 +35,16 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1440,
-      "fps": 240,
+      "frames": 1413,
+      "fps": 235,
       "frameMs": {
-        "mean": 4.167222222222223,
-        "p95": 4.299999999999727
+        "mean": 4.246850672328379,
+        "p95": 4.299999999999272
       },
       "render": {
-        "frame": 1831,
-        "calls": 373,
-        "triangles": 36616,
+        "frame": 1800,
+        "calls": 376,
+        "triangles": 69238,
         "points": 0,
         "lines": 0
       },
@@ -60,16 +60,41 @@
       "units": 120,
       "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "sampleSeconds": 6,
-      "frames": 1440,
-      "fps": 240,
+      "frames": 1413,
+      "fps": 235,
       "frameMs": {
-        "mean": 4.167152777777778,
+        "mean": 4.246779900920028,
+        "p95": 4.300000000000182
+      },
+      "render": {
+        "frame": 1800,
+        "calls": 380,
+        "triangles": 88552,
+        "points": 0,
+        "lines": 0
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "map": "llanura-del-estuario",
+      "width": 4800,
+      "height": 3000,
+      "units": 120,
+      "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "sampleSeconds": 6,
+      "frames": 1413,
+      "fps": 235,
+      "frameMs": {
+        "mean": 4.246779900920028,
         "p95": 4.299999999999272
       },
       "render": {
-        "frame": 1839,
-        "calls": 377,
-        "triangles": 45440,
+        "frame": 1799,
+        "calls": 386,
+        "triangles": 150334,
         "points": 0,
         "lines": 0
       },
