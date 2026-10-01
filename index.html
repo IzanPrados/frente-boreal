@@ -39,6 +39,25 @@
         ><span id="connection" title="Estado de conexión">LOCAL</span
         ><button id="menuButton" aria-label="Menú">☰</button>
       </header>
+      <section
+        id="timeControls"
+        class="glass"
+        aria-label="Tiempo de partida"
+        hidden
+      >
+        <div class="time-buttons">
+          <button
+            data-speed="0"
+            aria-label="Pausar partida"
+            aria-pressed="false"
+          >
+            Ⅱ</button
+          ><button data-speed="0.5" aria-pressed="false">0,5×</button
+          ><button data-speed="1" aria-pressed="true">1×</button
+          ><button data-speed="2" aria-pressed="false">2×</button>
+        </div>
+        <span id="timeStatus">Tiempo normal</span>
+      </section>
       <aside id="deployPanel" class="glass" hidden>
         <div class="panel-title">
           <span>REFUERZOS</span
@@ -110,11 +129,31 @@
           ><button data-order="load">Embarcar</button
           ><button data-order="unload">Desembarcar</button
           ><button data-order="resupply">Reabastecer</button>
+          <button data-order="garrison">Ocupar edificio</button
+          ><button data-order="exit">Salir del edificio</button>
         </div>
         <details>
           <summary>Estadísticas y función</summary>
           <p id="unitDetails"></p>
         </details>
+      </aside>
+      <aside id="buildingPanel" class="glass secondary" hidden>
+        <div class="panel-title">
+          <span id="buildingTitle">EDIFICIO</span
+          ><button data-close="buildingPanel" aria-label="Cerrar edificio">
+            ×
+          </button>
+        </div>
+        <p id="buildingStatus"></p>
+        <div id="buildingOccupants"></div>
+        <div class="building-actions">
+          <button id="enterBuilding" class="primary">Entrar</button
+          ><button id="exitBuilding">Salir</button>
+        </div>
+        <p id="buildingHelp">
+          La infantería llega primero al acceso. Mover desde dentro ordena salir
+          y continuar al destino.
+        </p>
       </aside>
       <aside id="groupPanel" class="glass secondary" hidden>
         <div class="panel-title">
@@ -156,7 +195,7 @@
           <div class="title-emblem">FB</div>
           <h1>FRENTE<br /><strong>BOREAL</strong></h1>
           <p>Controla el terreno.<br />Conserva tu fuerza.</p>
-          <div class="version">OPERACIONES TÁCTICAS · 0.2</div>
+          <div class="version">OPERACIONES TÁCTICAS · 0.3</div>
         </div>
         <div class="start-content">
           <div class="eyebrow">OPERACIONES / FRENTE BOREAL</div>
@@ -376,9 +415,31 @@
                 eligen antes de empezar.
               </p>
               <p>
-                El bosque y el pueblo dan cobertura. El reconocimiento descubre
-                enemigos. La supresión reduce la eficacia; la munición y los
-                suministros son limitados.
+                La vegetación reduce gradualmente la visión: los árboles
+                aislados ocultan menos que un bosque denso. Las paredes bloquean
+                el paso, la visión y los disparos directos. La artillería usa
+                fuego indirecto. Ver un enemigo con otra unidad no permite
+                disparar a través de paredes.
+              </p>
+            </div>
+            <div>
+              <h3>Edificios</h3>
+              <p>
+                Selecciona infantería y toca un edificio señalado; pulsa
+                <b>Entrar</b>. Debe llegar a una puerta con plaza libre. Dentro
+                recibe protección y dispara desde ventanas válidas. Toca la
+                posición ocupada para ver sus unidades y <b>Salir</b>; una orden
+                <b>Mover</b> también sale y continúa.
+              </p>
+            </div>
+            <div>
+              <h3>Tiempo y órdenes preparadas</h3>
+              <p>
+                <b>Ⅱ · 0,5× · 1× · 2×</b> controla todo el tiempo de juego. En
+                pausa puedes mover la cámara y dar órdenes: se ejecutan al tocar
+                una velocidad. En cooperativo cualquiera de los dos puede
+                cambiar el tiempo; ambos ven el mismo estado y quién lo cambió.
+                En uno contra uno se mantiene 1×.
               </p>
             </div>
             <div>
