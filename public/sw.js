@@ -1,6 +1,6 @@
 /* BUILD_REVISION is updated by prepare-assets.mjs when application files change. */
 const APP_VERSION = 'v0.1';
-const BUILD_REVISION = '0f1226e5c04577529b43';
+const BUILD_REVISION = '9a850be6f810e6b226e8';
 const CACHE_PREFIX = 'frente-boreal-';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}-${BUILD_REVISION}`;
 
