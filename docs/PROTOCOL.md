@@ -11,7 +11,7 @@ El servidor comprueba el `Origin` del navegador. Acepta el mismo origen del endp
 API de pruebas y embebido:
 
 ```js
-const app = await createServer({ host: '127.0.0.1', port: 0 });
+const app = await createServer({ host: "127.0.0.1", port: 0 });
 console.log(app.address.url); // Puerto asignado por el sistema
 await app.close();
 ```
@@ -22,30 +22,31 @@ Hay un máximo de dos personas por sala (`solo`: una). Los códigos tienen ocho 
 
 Cliente → servidor, JSON de texto:
 
-| Mensaje | Campos y efecto |
-| --- | --- |
-| `create` | `name`, `mode: solo/coop/versus`, `deck` y `config` opcionales; valida ajustes, crea una sala y toma la primera plaza. |
-| `join` | `code`, `name`, `deck` opcional; entra antes del inicio. |
-| `configure` | `config`; solo el anfitrión en el vestíbulo. Publica los ajustes validados y reinicia la preparación de todos si cambian. |
-| `team` | `team: 0/1`; solo en vestíbulo. Cooperativo y solo usan equipo 0. Reinicia la preparación. |
-| `ready` | `ready: boolean`, `configRevision`; para prepararse debe coincidir con la revisión actual recibida. Desmarcarse no exige revisión. |
-| `start` | Solo el anfitrión, todas las plazas ocupadas, conectadas y preparadas. Duelo exige equipos distintos. |
-| `command` | `seq` entero creciente y `command` según el contrato de simulación. |
-| `time` | `speed: 0/0.5/1/2`; pausa o cambia la velocidad. Cualquier participante activo de cooperativo puede enviarlo, igual que el jugador individual. PvP lo rechaza. |
-| `resume` | `code`, `token`; recupera su identidad y sus confirmaciones anteriores. |
-| `leave` | Libera la plaza; durante una partida finaliza la sesión para todos. |
+| Mensaje     | Campos y efecto                                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`    | `name`, `mode: solo/coop/versus`, `deck` y `config` opcionales; valida ajustes, crea una sala y toma la primera plaza.                                          |
+| `join`      | `code`, `name`, `deck` opcional; entra antes del inicio.                                                                                                        |
+| `configure` | `config`; solo el anfitrión en el vestíbulo. Publica los ajustes validados y reinicia la preparación de todos si cambian.                                       |
+| `team`      | `team: 0/1`; solo en vestíbulo. Cooperativo y solo usan equipo 0. Reinicia la preparación.                                                                      |
+| `ready`     | `ready: boolean`, `configRevision`; para prepararse debe coincidir con la revisión actual recibida. Desmarcarse no exige revisión.                              |
+| `start`     | Solo el anfitrión, todas las plazas ocupadas, conectadas y preparadas. Duelo exige equipos distintos.                                                           |
+| `command`   | `seq` entero creciente y `command` según el contrato de simulación.                                                                                             |
+| `time`      | `speed: 0/0.5/1/2`; pausa o cambia la velocidad. Cualquier participante activo de cooperativo puede enviarlo, igual que el jugador individual. PvP lo rechaza.  |
+| `reveal`    | `enabled: boolean`; cambia únicamente la visualización del emisor si la partida en curso permite mostrar enemigos. Disponible en individual, cooperativo y PvP. |
+| `resume`    | `code`, `token`; recupera su identidad y sus confirmaciones anteriores.                                                                                         |
+| `leave`     | Libera la plaza; durante una partida finaliza la sesión para todos.                                                                                             |
 
 Servidor → cliente:
 
-| Mensaje | Contenido |
-| --- | --- |
-| `welcome` | `playerId`, `token`, `code`; guardar la credencial actualizada. |
-| `room` | `room: {code,mode,hostId,status,paused,config,configRevision,players:[{id,name,team,ready,connected}]}`. |
-| `state` | `state` de `snapshotFor(game,playerId)`, más `paused`, `pauseReason`, `reconnectDeadline`, `timeControl` y `pendingOrders`. |
-| `ack` | `seq`, `ok`, `error` opcional. `queued: true` significa que la orden está preparada para reanudar. |
-| `commandResult` | Resultado definitivo de una orden preparada: `seq`, `ok`, `queued: false`, `error` opcional. |
-| `error` | `message` legible en español. |
-| `ended` | `message`; la sala o la conexión del jugador ya no mantienen esa sesión. |
+| Mensaje         | Contenido                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `welcome`       | `playerId`, `token`, `code`; guardar la credencial actualizada.                                                                             |
+| `room`          | `room: {code,mode,hostId,status,paused,config,configRevision,players:[{id,name,team,ready,connected}]}`.                                    |
+| `state`         | `state` de `snapshotFor(game,playerId,{revealEnemies})`, más `paused`, `pauseReason`, `reconnectDeadline`, `timeControl` y `pendingOrders`. |
+| `ack`           | `seq`, `ok`, `error` opcional. `queued: true` significa que la orden está preparada para reanudar.                                          |
+| `commandResult` | Resultado definitivo de una orden preparada: `seq`, `ok`, `queued: false`, `error` opcional.                                                |
+| `error`         | `message` legible en español.                                                                                                               |
+| `ended`         | `message`; la sala o la conexión del jugador ya no mantienen esa sesión.                                                                    |
 
 El servidor ignora identidades suministradas en una orden: utiliza la sesión del WebSocket. No acepta órdenes antes del inicio, durante la interrupción por desconexión ni después del final. Durante la pausa manual sí permite prepararlas sin efectos jugables. Cada jugador conserva las 256 últimas confirmaciones: reenviar el mismo `seq` devuelve su confirmación sin ejecutar otra vez el gasto o la orden. Secuencias anteriores a esa ventana se rechazan. El cliente debe conservar el contador al reconectar, repetir una orden pendiente con su mismo `seq` y usar un número superior para una nueva orden.
 
@@ -53,20 +54,31 @@ El servidor ignora identidades suministradas en una orden: utiliza la sesión de
 
 El contrato de `shared/config.mjs` se usa en el servidor y en el trabajador de la partida individual. `config` contiene:
 
-| Campo | Valor predeterminado | Validación y efecto |
-| --- | --- | --- |
-| `mapId` | `valle-bruma` | Identificador del catálogo de mapas; el mapa fija su tamaño, terreno y objetivos. |
-| `startingResources` | `410` | Entero de 0 a 10000, aplicado una vez a cada jugador y a la IA. |
-| `incomeMultiplier` | `1` | Uno de 0,5 / 1 / 2 / 3 / 5; multiplica los ingresos normales durante la partida. No altera precios ni presupuesto inicial. |
-| `maxUnits` | `120` | Entero de 24 a 120; límite global de unidades de la partida. |
-| `duration` | `720` | Entero de 180 a 3600 segundos; duración máxima. |
-| `tickets` | `300` | Entero de 100 a 2000; puntuación inicial de cada bando. |
+| Campo               | Valor predeterminado | Validación y efecto                                                                                                                  |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `mapId`             | `valle-bruma`        | Identificador del catálogo de mapas; el mapa fija su tamaño, terreno y objetivos.                                                    |
+| `startingResources` | `410`                | Entero de 0 a 10000, aplicado una vez a cada jugador y a la IA.                                                                      |
+| `incomeMultiplier`  | `1`                  | Uno de 0,5 / 1 / 2 / 3 / 5; multiplica los ingresos normales durante la partida. No altera precios ni presupuesto inicial.           |
+| `maxUnits`          | `120`                | Entero de 24 a 120; límite global de unidades de la partida.                                                                         |
+| `duration`          | `720`                | Entero de 180 a 3600 segundos; duración máxima.                                                                                      |
+| `tickets`           | `300`                | Entero de 100 a 2000; puntuación inicial de cada bando.                                                                              |
+| `allowEnemyReveal`  | `false`              | Booleano estricto; permite que cada participante active la ayuda visual para mostrar enemigos ocultos. No la activa automáticamente. |
 
 Omitir ajustes utiliza los valores predeterminados; los objetos parciales completan los campos ausentes con esos valores. Se rechazan campos desconocidos, tipos incorrectos y valores fuera de rango. La restauración tolerante de preferencias locales no sustituye esta validación del servidor.
 
 Cada sala empieza con `configRevision: 1`. Un cambio efectivo aumenta la revisión y desmarca a todos. Una preparación enviada con una revisión antigua o sin revisión se rechaza, aunque llegue después del cambio por retraso de red. Una petición idéntica conserva la revisión y la preparación. Al iniciar se entrega la misma configuración a la simulación autoritativa; tanto `room` como `state` exponen esos valores y quedan bloqueados durante la partida. Al reconectar se recibe la configuración actual del servidor.
 
 El servidor mantiene la ruta pendiente de cada unidad, escoge el objetivo, interrumpe el movimiento, resuelve los disparos y reanuda el trayecto. Los clientes no calculan otro combate. Los estados de unidades del propio equipo incluyen `combatPaused` y `combatTargetId`, junto a la orden y el destino pendiente; la vista rival sigue ocultando órdenes y datos tácticos privados.
+
+## Ayuda visual para mostrar enemigos
+
+El anfitrión decide `allowEnemyReveal` antes del inicio con las mismas reglas de revisión y preparación que los demás ajustes. El permiso queda bloqueado al comenzar. Los ajustes guardados antes de existir este campo se restauran con `false`; cadenas como `"true"` y números no son booleanos válidos.
+
+Cada sesión conserva su propia preferencia `revealEnemies`, inicialmente `false`. `{type: 'reveal', enabled: true}` solo se acepta durante una partida en curso, con un booleano y con el permiso autorizado en la configuración congelada de la simulación. Una identidad o configuración adjunta al mensaje no concede permiso. Cualquiera de los dos jugadores puede activar o desactivar su vista por separado, incluidos ambos bandos en PvP. Reconectar recupera la preferencia de esa plaza; una partida nueva empieza con la ayuda desactivada.
+
+La respuesta es un estado actualizado solo para el emisor. `state.revealEnemies` indica si la ayuda está realmente activa. En cada unidad, `detected` refleja la visibilidad normal de su equipo; `displayOnly` identifica enemigos añadidos exclusivamente por la ayuda. Las unidades aliadas y los enemigos normalmente detectados tienen `displayOnly: false`. Los pasajeros enemigos que permanecen dentro de un transporte no se envían como unidades independientes. Munición, órdenes, destinos y reservas rivales siguen siendo privados.
+
+Mostrar u ocultar enemigos no modifica la detección, la niebla de la simulación, la IA, los objetivos válidos, las armas, el reloj ni las órdenes preparadas. Puede cambiarse durante la pausa y no se introduce en la cola de acciones jugables. Al ocultar se calcula una vista nueva con las reglas normales; no se conservan posiciones actualizadas ni ocupantes enemigos ocultos en el estado recibido. El trabajador individual aplica las mismas comprobaciones que el servidor.
 
 ## Edificios y privacidad
 
@@ -75,7 +87,9 @@ Las órdenes nuevas usan el mismo canal `command`, con su secuencia y propietari
 - `{type: 'garrison', unitIds, buildingId}`: solicita una plaza para cada escuadra de infantería y una ruta hasta un acceso válido. La simulación reserva las plazas en orden autoritativo; ocupar exige completar el desplazamiento. No se permite compartir edificio entre enemigos.
 - `{type: 'exit', unitIds}`: cancela la entrada pendiente o saca las tropas a posiciones exteriores transitables. Una orden `move` desde dentro realiza la salida antes de recorrer su destino.
 
-El mapa público define la geometría, los accesos y la capacidad estática de cada edificio. `state.buildings` contiene `id`, `team`, `known`, `observed`, `occupied`, `reserved` y `occupantIds`. Las reservas y las plazas aliadas se comparten dentro del equipo. Un edificio sin reclamación aliada ni ocupantes enemigos detectados devuelve los datos dinámicos como `null`, indicadores falsos e identificadores vacíos; no se distingue así entre vacío y enemigo oculto. La información rival detectada se limita a los ocupantes visibles y no revela sus reservas. `known` indica reclamación aliada; `observed` indica ocupantes detectados.
+El mapa público define la geometría, los accesos y la capacidad estática de cada edificio. `state.buildings` contiene `id`, `team`, `known`, `observed`, `occupied`, `reserved`, `occupantIds` y `displayOnly`. Las reservas y las plazas aliadas se comparten dentro del equipo. Con la ayuda visual desactivada, un edificio sin reclamación aliada ni ocupantes enemigos detectados devuelve los datos dinámicos como `null`, indicadores falsos e identificadores vacíos; no se distingue así entre vacío y enemigo oculto. La información rival detectada se limita a los ocupantes visibles y no revela sus reservas. `known` indica reclamación aliada; `observed` indica ocupantes detectados.
+
+Con el revelado autorizado y activo, los ocupantes rivales añadidos por la ayuda aparecen en `occupantIds` y en el contador `occupied`, vinculados al edificio mediante `garrisonedIn`. Su equipo puede mostrarse, pero `reserved` sigue siendo `null`. `displayOnly` es verdadero si se muestra esa ocupación únicamente por la ayuda; `observed` sigue dependiendo de la detección real. Al desactivar la ayuda se restaura inmediatamente la privacidad normal del edificio.
 
 Las unidades visibles incluyen `garrisonedIn`; `pendingBuildingId` solo se entrega al propio equipo. Los eventos de entrada y salida enemigos requieren que la unidad esté detectada. Las respuestas de entrada no distinguen entre capacidad agotada, reclamación hostil y acceso no disponible: no proporcionan un contador oculto como vía alternativa de reconocimiento.
 
@@ -84,7 +98,9 @@ Las unidades visibles incluyen `garrisonedIn`; `pendingBuildingId` solo se entre
 `shared/match-control.mjs` gobierna el reloj tanto en el servidor como en el trabajador individual. `timeControl` vale `null` en PvP. En los modos contra IA contiene:
 
 ```js
-{ paused, speed, lastSpeed, revision, changedBy, changedByName }
+{
+  (paused, speed, lastSpeed, revision, changedBy, changedByName);
+}
 ```
 
 `speed` es cero durante la pausa; `lastSpeed` conserva la última velocidad positiva. Toda solicitud válida aumenta `revision` y registra la identidad y nombre del jugador autenticado. El proceso del servidor decide el orden de solicitudes concurrentes y transmite inmediatamente el mismo resultado a ambos participantes. Cambiar a 0,5×, 1× o 2× reanuda. No existe restricción al anfitrión para estos controles.
@@ -100,7 +116,7 @@ La pausa de conexión (`state.paused`) es independiente de la pausa manual (`sta
 ## Ritmo, niebla y conexión
 
 - Simulación: paso fijo de 100 ms de juego, con ritmo 0,5× / 1× / 2× en modos contra IA y 1× en PvP. El estado se transmite cada 200 ms reales, también en pausa; no se recupera tiempo perdido mediante saltos grandes.
-- Cada cliente recibe exclusivamente `snapshotFor` de su identidad. La simulación decide qué enemigos y eventos puede ver su equipo.
+- Cada cliente recibe exclusivamente `snapshotFor` de su identidad, con su preferencia visual individual validada. La simulación conserva las reglas normales de detección y filtrado de eventos.
 - Una desconexión conocida pausa toda la partida. Se concede un plazo de 90 segundos por defecto. Los demás reciben el motivo y una fecha límite Unix en milisegundos.
 - Al reanudar se rota el token y se invalida cualquier WebSocket anterior de esa plaza. Guardar siempre el nuevo `welcome`.
 - Si se agota el plazo, la partida termina con `ended`. No se inventa un vencedor para una desconexión. Si el proceso se reinicia, las salas se pierden: esta versión las guarda en memoria.
@@ -114,5 +130,7 @@ Máximo 16 KiB por mensaje, 32 conexiones, 8 salas, 30 mensajes por segundo por 
 `GET /health` devuelve estado básico. Los archivos públicos se limitan a `index.html`, manifiesto, service worker, icono y carpetas `client/`, `shared/`, `public/`; los alias `vendor/` e `icons/` apuntan dentro de `public/`. No se sirven `server/`, `tests/`, `node_modules/`, archivos ocultos ni rutas que salgan del proyecto. El service worker y el HTML se revalidan, y el manifiesto puede solicitarse desde `/manifest.webmanifest`.
 
 Las pruebas automatizadas usan clientes WebSocket reales conectados por TCP al servidor local. Eso verifica comunicación y reglas de servidor; no equivale a haber jugado en dos dispositivos físicos ni desde redes distintas.
+
+Las pruebas del revelado incluyen ambos jugadores de PvP y cooperativo, permisos rechazados, cambios de revisión, reconexión y ocupantes ocultos. Comprueban que mostrar y ocultar no cambia el estado autoritativo ni el reloj durante una pausa. Otra prueba ejecuta el archivo real del trabajador individual en un trabajador de Node con un adaptador de mensajes de Web Worker; verifica su contrato, pero no equivale a ejecutar Safari ni un iPhone físico.
 
 El cliente conserva las órdenes todavía sin confirmar y su `seq` en el almacenamiento de la pestaña. Reintenta cada 2,5 segundos; tras tres envíos sin confirmación intenta recuperar la conexión. Al recibir un `welcome` nuevo reenvía las órdenes pendientes con el mismo `seq`. Una credencial rechazada termina la recuperación con un mensaje claro. El abandono voluntario invalida los manejadores del socket anterior para que un mensaje tardío no afecte a la nueva pantalla. La prueba de pérdida de confirmación rompe una conexión TCP real después de aplicar una orden y descartar deliberadamente su primer `ack`; las funciones de almacenamiento de navegador se emulan en Node para esa prueba.
