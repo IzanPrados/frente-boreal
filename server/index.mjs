@@ -108,7 +108,7 @@ export async function createServer({
   }
   function roomBroadcast(room) { const payload = { type: 'room', room: roomView(room) }; for (const p of room.players) send(p.ws, payload); }
   function stateFor(room, player) {
-    return { ...snapshotFor(room.game, player.id), paused: !!room.paused,
+    return { ...snapshotFor(room.game, player.id, { revealEnemies: player.revealEnemies }), paused: !!room.paused,
       timeControl: timeControlSnapshot(room.clock), pendingOrders: pendingOrderCount(room.clock, player.id),
       pauseReason: room.paused ? 'Esperando la reconexión de un jugador.' : null,
       reconnectDeadline: room.paused ? Math.min(...room.players.filter(p => !p.ws).map(p => p.disconnectedAt + disconnectGraceMs)) : null };
@@ -168,7 +168,7 @@ export async function createServer({
   function newPlayer(ws, room, message) {
     const player = { id: randomBytes(10).toString('hex'), token: token(), name: cleanName(message.name),
       team: room.mode === 'versus' ? room.players.length : 0, ready: false, ws: null, disconnectedAt: null,
-      deck: cleanDeck(message.deck), lastSeq: -1, commandAcks: new Map() };
+      deck: cleanDeck(message.deck), revealEnemies: false, lastSeq: -1, commandAcks: new Map() };
     room.players.push(player);
     if (!room.hostId) room.hostId = player.id;
     attach(ws, room, player);
@@ -271,6 +271,14 @@ export async function createServer({
       if (!result.ok) { fail(ws, result.error); return; }
       room.lastStepAt = performance.now();
       broadcastState(room);
+      return;
+    }
+    if (message.type === 'reveal') {
+      if (room.status !== 'playing' || room.game?.status !== 'playing') { fail(ws, 'Solo puedes cambiar esta visualización durante una partida.'); return; }
+      if (typeof message.enabled !== 'boolean') { fail(ws, 'La opción de mostrar enemigos necesita verdadero o falso.'); return; }
+      if (room.game.config.allowEnemyReveal !== true) { fail(ws, 'Esta partida no permite mostrar tropas enemigas.'); return; }
+      player.revealEnemies = message.enabled;
+      send(ws, { type: 'state', state: stateFor(room, player) });
       return;
     }
     if (message.type === 'command') {
