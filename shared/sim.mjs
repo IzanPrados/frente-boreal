@@ -1,6 +1,7 @@
 import { MAP, UNIT_TYPES, RULES, DEFAULT_DECK } from './data.mjs';
 import { validateConfig } from './config.mjs';
 import { getMap } from './maps.mjs';
+import { vegetationAt } from './terrain.mjs';
 
 const CELL = 40;
 const EPS = 0.00001;
@@ -29,7 +30,13 @@ function regionsFor(map) {
     const y0 = clamp(Math.floor(region.y / CELL), 0, rows - 1), y1 = clamp(Math.floor((region.y + region.h) / CELL), 0, rows - 1);
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) cells[y * cols + x].push(region);
   }
-  index = { cols, rows, cells, water: map.terrain.filter(t => t.type === 'water'), roads: map.terrain.filter(t => t.type === 'road') };
+  const buildingCells = Array.from({ length: cols * rows }, () => []);
+  for (const building of map.buildings || []) {
+    for (let y = Math.max(0, Math.floor(building.y / CELL)); y <= Math.min(rows - 1, Math.floor((building.y + building.h) / CELL)); y++) {
+      for (let x = Math.max(0, Math.floor(building.x / CELL)); x <= Math.min(cols - 1, Math.floor((building.x + building.w) / CELL)); x++) buildingCells[y * cols + x].push(building);
+    }
+  }
+  index = { cols, rows, cells, buildingCells, buildings: map.buildings || [], water: map.terrain.filter(t => t.type === 'water'), roads: map.terrain.filter(t => t.type === 'road') };
   regionIndexes.set(map, index);
   return index;
 }
@@ -41,14 +48,34 @@ export function terrainAt(x, y, map = MAP) {
   return index.cells[cell].find(t => inside(p, t))?.type || 'open';
 }
 
+export function buildingAt(x, y, map = MAP) {
+  const index = regionsFor(map);
+  const cell = clamp(Math.floor(y / CELL), 0, index.rows - 1) * index.cols + clamp(Math.floor(x / CELL), 0, index.cols - 1);
+  return index.buildingCells[cell].find(building => inside({ x, y }, building)) || null;
+}
+
+export function groundPassable(x, y, map = MAP) {
+  return x >= 0 && y >= 0 && x <= map.width && y <= map.height && terrainAt(x, y, map) !== 'water' && !buildingAt(x, y, map);
+}
+
+function nearbyBuildings(a, b, map) {
+  const index = regionsFor(map);
+  const x0 = clamp(Math.floor(Math.min(a.x, b.x) / CELL), 0, index.cols - 1), x1 = clamp(Math.floor(Math.max(a.x, b.x) / CELL), 0, index.cols - 1);
+  const y0 = clamp(Math.floor(Math.min(a.y, b.y) / CELL), 0, index.rows - 1), y1 = clamp(Math.floor(Math.max(a.y, b.y) / CELL), 0, index.rows - 1);
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > index.buildings.length * 2) return index.buildings;
+  const found = new Set();
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) for (const building of index.buildingCells[y * index.cols + x]) found.add(building);
+  return found;
+}
+
 function navigationFor(map) {
   let grid = navigationIndexes.get(map);
   if (grid) return grid;
   const { cols, rows } = regionsFor(map);
-  grid = { cols, rows, passable: new Uint8Array(cols * rows), costs: new Float32Array(cols * rows), edges: new Uint8Array(cols * rows) };
+  grid = { cols, rows, passable: new Uint8Array(cols * rows), costs: new Float32Array(cols * rows), edges: new Uint8Array(cols * rows), routes: new Map() };
   for (let i = 0; i < grid.passable.length; i++) {
     const point = cellPoint(i, grid), land = terrainAt(point.x, point.y, map);
-    grid.passable[i] = land !== 'water';
+    grid.passable[i] = groundPassable(point.x, point.y, map);
     grid.costs[i] = land === 'road' ? 0.78 : land === 'forest' ? 1.5 : 1;
   }
   for (let i = 0; i < grid.passable.length; i++) {
@@ -92,6 +119,7 @@ function rectangleInterval(a, b, rect) {
 
 function clearGround(a, b, map) {
   const index = regionsFor(map);
+  for (const building of nearbyBuildings(a, b, map)) if (rectangleInterval(a, b, building)) return false;
   for (const water of index.water) {
     const blocked = rectangleInterval(a, b, water);
     if (!blocked) continue;
@@ -111,7 +139,7 @@ function clearGround(a, b, map) {
 
 function nearestGround(p, map) {
   p = { x: clamp(p.x, 15, map.width - 15), y: clamp(p.y, 15, map.height - 15) };
-  if (terrainAt(p.x, p.y, map) !== 'water') return p;
+  if (groundPassable(p.x, p.y, map)) return p;
   const grid = navigationFor(map);
   let best = null, bestD = Infinity;
   for (let i = 0; i < grid.passable.length; i++) {
@@ -171,6 +199,20 @@ function queuePop(heap) {
 }
 
 // Small bounded A* grid shared by solo and authoritative server simulations.
+function smoothRoute(from, cells, destination, grid, map) {
+  const raw = cells.map(index => cellPoint(index, grid));
+  raw.push(destination);
+  const smooth = [];
+  let origin = from;
+  for (let i = 0; i < raw.length;) {
+    let farthest = i;
+    while (farthest + 1 < raw.length && clearGround(origin, raw[farthest + 1], map)) farthest++;
+    if (!clearGround(origin, raw[farthest], map)) return [];
+    smooth.push(raw[farthest]); origin = raw[farthest]; i = farthest + 1;
+  }
+  return smooth;
+}
+
 function pathTo(from, target, domain, map) {
   if (domain === 'air') return [{ x: target.x, y: target.y }];
   const destination = nearestGround(target, map);
@@ -179,31 +221,30 @@ function pathTo(from, target, domain, map) {
   const grid = navigationFor(map), { cols, passable } = grid;
   const start = reachableCell(from, grid, map), finish = reachableCell(destination, grid, map);
   if (start < 0 || finish < 0) return [];
+  const finishPoint = cellPoint(finish, grid);
+  const key = start * passable.length + finish;
+  const cached = grid.routes.get(key);
+  if (cached) return smoothRoute(from, cached, destination, grid, map);
   const open = [];
   const scores = new Float64Array(passable.length).fill(Infinity);
   const estimates = new Float64Array(passable.length).fill(Infinity);
   const parent = new Int32Array(passable.length).fill(-1);
   scores[start] = 0;
-  estimates[start] = dist(cellPoint(start, grid), destination);
+  estimates[start] = dist(cellPoint(start, grid), finishPoint);
   queuePush(open, { index: start, score: estimates[start] });
   while (open.length) {
     const entry = queuePop(open);
     let current = entry.index;
     if (entry.score > estimates[current] + EPS) continue;
     if (current === finish) {
-      const raw = [destination];
-      while (current !== start) { raw.push(cellPoint(current, grid)); current = parent[current]; }
-      raw.push(cellPoint(start, grid));
-      raw.reverse();
-      const smooth = [];
-      let origin = from;
-      for (let i = 0; i < raw.length;) {
-        let farthest = i;
-        while (farthest + 1 < raw.length && clearGround(origin, raw[farthest + 1], map)) farthest++;
-        if (!clearGround(origin, raw[farthest], map)) return [];
-        smooth.push(raw[farthest]); origin = raw[farthest]; i = farthest + 1;
-      }
-      return smooth;
+      const cells = [];
+      while (current !== start) { cells.push(current); current = parent[current]; }
+      cells.push(start); cells.reverse();
+      // Cache only immutable cell routes, never mutable unit paths. Exact
+      // start/end connectors and all smoothed segments are checked each time.
+      if (grid.routes.size >= 1024) grid.routes.delete(grid.routes.keys().next().value);
+      grid.routes.set(key, cells);
+      return smoothRoute(from, cells, destination, grid, map);
     }
     const cx = current % cols, cy = Math.floor(current / cols);
     for (const [direction, [dx, dy]] of DIRECTIONS.entries()) {
@@ -213,7 +254,7 @@ function pathTo(from, target, domain, map) {
       const point = cellPoint(ni, grid);
       const score = scores[current] + (dx && dy ? 56.57 : 40) * grid.costs[ni];
       if (score + EPS < scores[ni]) {
-        parent[ni] = current; scores[ni] = score; estimates[ni] = score + dist(point, destination) * 0.75;
+        parent[ni] = current; scores[ni] = score; estimates[ni] = score + dist(point, finishPoint) * 0.75;
         queuePush(open, { index: ni, score: estimates[ni] });
       }
     }
@@ -221,30 +262,66 @@ function pathTo(from, target, domain, map) {
   return [];
 }
 
-function sightClear(game, from, to, domain = 'ground') {
-  if (domain === 'air' || UNIT_TYPES[from.type]?.domain === 'air') return true;
-  const distance = dist(from, to), count = Math.ceil(distance / 22);
-  let obstruction = 0;
-  for (let i = 1; i < count; i++) {
-    const t = i / count, p = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-    const land = terrainAt(p.x, p.y, game.map);
-    if (land === 'forest' || land === 'town') obstruction += distance / count;
-    if (game.smokes.some(s => dist(s, p) < s.radius)) obstruction += 80;
-    if (obstruction > (from.type === 'recon' ? 130 : 80)) return false;
+const buildingFor = (game, id) => id ? (game.map.buildings || []).find(building => building.id === id) : null;
+
+function rayPoints(game, unit) {
+  const building = buildingFor(game, unit.garrisonedIn);
+  if (building) return building.firePoints.map(point => ({ ...point, z: Math.min(building.height - 1, 5) }));
+  return [{ x: unit.x, y: unit.y, z: UNIT_TYPES[unit.type]?.domain === 'air' ? unit.type === 'jet' ? 65 : 35 : 2 }];
+}
+
+function rayObstruction(game, from, to) {
+  for (const building of nearbyBuildings(from, to, game.map)) {
+    const interval = rectangleInterval(from, to, building);
+    if (!interval) continue;
+    const z0 = from.z + (to.z - from.z) * interval[0], z1 = from.z + (to.z - from.z) * interval[1];
+    if (Math.min(z0, z1) < building.height) return Infinity;
   }
-  return true;
+  const distance = dist(from, to), count = Math.max(1, Math.ceil(distance / 8));
+  let obstruction = 0;
+  for (let i = 0; i < count; i++) {
+    const t = (i + 0.5) / count;
+    const p = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+    const height = from.z + (to.z - from.z) * t;
+    if (height < 20) obstruction += (vegetationAt(game.map, p.x, p.y)?.visionDensity || 0) * distance / count;
+    if (height < 25 && game.smokes.some(smoke => dist(smoke, p) < smoke.radius)) obstruction += 80;
+  }
+  return obstruction;
+}
+
+function clearRays(game, from, to, threshold) {
+  const rays = [];
+  // Occupants use exterior windows. The ray is then tested against every solid
+  // building, including their own: a window cannot fire through its back wall.
+  for (const origin of rayPoints(game, from)) for (const target of rayPoints(game, to)) {
+    const obstruction = rayObstruction(game, origin, target);
+    if (obstruction <= threshold) rays.push({ origin, target, obstruction, distance: dist(origin, target) });
+  }
+  return rays.sort((a, b) => a.distance - b.distance);
+}
+
+function sightClear(game, from, to) {
+  return clearRays(game, from, to, from.type === 'recon' ? 130 : 80).length > 0;
+}
+
+function firingSolution(game, unit, target) {
+  const data = UNIT_TYPES[unit.type];
+  if (unit.type === 'artillery') {
+    const distance = dist(unit, target);
+    return distance <= data.range && distance >= data.minRange ? { origin: { x: unit.x, y: unit.y }, target: { x: target.x, y: target.y } } : null;
+  }
+  return clearRays(game, unit, target, 160).find(ray => ray.distance <= data.range && ray.distance >= (data.minRange || 0)) || null;
 }
 
 function sees(game, observer, target) {
   const data = UNIT_TYPES[observer.type], other = UNIT_TYPES[target.type];
   const d = dist(observer, target);
-  if (d < 48) return true;
-  const land = terrainAt(target.x, target.y, game.map);
-  const concealment = other.domain === 'ground' && (land === 'forest' || land === 'town') ? (observer.type === 'recon' ? 0.86 : 0.61) : 1;
+  const vegetation = vegetationAt(game.map, target.x, target.y);
+  const concealment = target.garrisonedIn ? 0.72 : other.domain === 'ground' && vegetation ? (observer.type === 'recon' ? vegetation.reconConcealment : vegetation.concealment) : 1;
   const firingBonus = game.time - target.lastShot < 2.5 ? 65 : 0;
-  if (d > data.vision * concealment + firingBonus) return false;
+  if (d > data.vision + firingBonus + (observer.garrisonedIn || target.garrisonedIn ? 180 : 0)) return false;
   if (game.smokes.some(s => dist(s, target) < s.radius) && d > 65) return false;
-  return sightClear(game, observer, target, other.domain);
+  return clearRays(game, observer, target, observer.type === 'recon' ? 130 : 80).some(ray => ray.distance <= data.vision * concealment + firingBonus - ray.obstruction * 0.7);
 }
 
 function visibleSet(game, team) {
@@ -282,6 +359,7 @@ function spawn(game, player, type, position) {
     path: [], cargo: [], loadedIn: null, smoke: data.smoke || 0,
     stock: data.stock || 0, moving: false, aiNext: 0,
     combatTargetId: null, combatPaused: false, targetLostAt: null, nextTargetScan: 0,
+    garrisonedIn: null, pendingBuildingId: null,
   };
   game.units.push(u);
   return u;
@@ -322,6 +400,8 @@ export function createGame({ mode = 'solo', players = [{ id: 'player1', name: 'C
 }
 
 function setOrder(game, unit, type, target) {
+  if (unit.garrisonedIn && ['move', 'attackMove', 'resupply', 'garrison'].includes(type) && !leaveBuilding(game, unit)) return false;
+  unit.pendingBuildingId = null;
   unit.order = type;
   unit.target = target ? { x: target.x, y: target.y } : null;
   unit.path = target ? pathTo(unit, target, UNIT_TYPES[unit.type].domain, game.map) : [];
@@ -330,6 +410,93 @@ function setOrder(game, unit, type, target) {
   unit.targetLostAt = null;
   unit.nextTargetScan = 0;
   unit.moving = false;
+  return true;
+}
+
+function buildingMembers(game, buildingId) {
+  return game.units.filter(unit => unit.hp > 0 && (unit.garrisonedIn === buildingId || unit.pendingBuildingId === buildingId));
+}
+
+function exteriorPosition(game, unit, building, planned = []) {
+  const occupied = game.units.filter(other => alive(other) && other.id !== unit.id && !other.garrisonedIn && UNIT_TYPES[other.type].domain === 'ground');
+  const doors = [...building.doors].sort((a, b) => dist(unit, a) - dist(unit, b));
+  for (const door of doors) {
+    const horizontal = door.y < building.y || door.y > building.y + building.h;
+    for (const offset of [0, 14, -14, 28, -28, 42, -42, 56, -56]) {
+      const point = { x: door.x + (horizontal ? offset : 0), y: door.y + (horizontal ? 0 : offset) };
+      if (!groundPassable(point.x, point.y, game.map) || !clearGround(door, point, game.map)) continue;
+      if (occupied.some(other => dist(other, point) < 10) || planned.some(other => dist(other, point) < 10)) continue;
+      return point;
+    }
+  }
+  return null;
+}
+
+function leaveBuilding(game, unit, position) {
+  const building = buildingFor(game, unit.garrisonedIn);
+  if (!building) { unit.garrisonedIn = null; return true; }
+  const exterior = position || exteriorPosition(game, unit, building);
+  if (!exterior) return false;
+  unit.garrisonedIn = null;
+  unit.x = exterior.x; unit.y = exterior.y;
+  emit(game, 'exit', { unitId: unit.id, buildingId: building.id, team: unit.team, x: unit.x, y: unit.y });
+  return true;
+}
+
+function garrisonCommand(game, units, buildingId) {
+  const building = buildingFor(game, buildingId);
+  if (!building?.capacity || building.occupiable === false || units.some(unit => unit.type !== 'infantry')) return { ok: false, error: 'Selecciona infantería y un edificio ocupable.' };
+  const selected = new Set(units.map(unit => unit.id));
+  const existing = buildingMembers(game, buildingId).filter(unit => !selected.has(unit.id));
+  // The same generic response covers obstruction, capacity and hostile claims;
+  // an unobserved building never reveals enemy counts through a rejected order.
+  const unavailable = { ok: false, error: 'No hay un acceso y plazas disponibles para esa orden.' };
+  if (existing.some(unit => unit.team !== units[0].team) || existing.length + units.length > building.capacity) return unavailable;
+  const plans = [], exits = [];
+  for (const unit of units) {
+    if (unit.garrisonedIn === building.id) { plans.push({ unit, alreadyInside: true }); continue; }
+    const previousBuilding = buildingFor(game, unit.garrisonedIn);
+    const origin = previousBuilding ? exteriorPosition(game, unit, previousBuilding, exits) : { x: unit.x, y: unit.y };
+    if (!origin) return unavailable;
+    if (previousBuilding) exits.push(origin);
+    let best = null;
+    for (const door of building.doors) {
+      if (!groundPassable(door.x, door.y, game.map)) continue;
+      const path = pathTo(origin, door, 'ground', game.map);
+      if (!path.length) continue;
+      let length = 0, from = origin;
+      for (const to of path) { length += dist(from, to); from = to; }
+      if (!best || length < best.length) best = { path, door, length };
+    }
+    if (!best) return unavailable;
+    plans.push({ unit, origin, previousBuilding, ...best });
+  }
+  // Commit only after every unit has a valid route and a reserved slot. The
+  // authority handles commands sequentially, so simultaneous requests cannot
+  // both reserve the final place.
+  for (const plan of plans) {
+    if (plan.alreadyInside) continue;
+    if (plan.previousBuilding) leaveBuilding(game, plan.unit, plan.origin);
+    setOrder(game, plan.unit, 'garrison');
+    plan.unit.pendingBuildingId = building.id;
+    plan.unit.target = { ...plan.door };
+    plan.unit.path = plan.path;
+  }
+  return { ok: true };
+}
+
+function arriveAtBuilding(game, unit) {
+  if (!unit.pendingBuildingId || unit.path.length || unit.order !== 'garrison') return;
+  const building = buildingFor(game, unit.pendingBuildingId);
+  if (!building || !unit.target || dist(unit, unit.target) > 2) { setOrder(game, unit, 'stop'); return; }
+  const members = buildingMembers(game, building.id);
+  if (members.length > building.capacity || members.some(other => other.team !== unit.team)) { setOrder(game, unit, 'stop'); return; }
+  unit.garrisonedIn = building.id;
+  unit.pendingBuildingId = null;
+  unit.x = building.x + building.w / 2; unit.y = building.y + building.h / 2;
+  unit.order = 'stop'; unit.target = null; unit.path = []; unit.moving = false;
+  unit.combatPaused = false; unit.combatTargetId = null; unit.nextTargetScan = 0;
+  emit(game, 'garrison', { unitId: unit.id, buildingId: building.id, team: unit.team, x: unit.x, y: unit.y });
 }
 
 function finish(game, winner, reason) {
@@ -356,13 +523,13 @@ export function applyCommand(game, playerId, command) {
     if (player.credits + EPS < data.cost) return { ok: false, error: 'Presupuesto insuficiente.' };
     const point = { x: command.x ?? game.map.spawns[player.team].x, y: command.y ?? game.map.spawns[player.team].y };
     if (!pointOK(point, game.map) || dist(point, game.map.spawns[player.team]) > RULES.deploymentRadius) return { ok: false, error: 'Despliega dentro del círculo de tu base.' };
-    if (data.domain === 'ground' && terrainAt(point.x, point.y, game.map) === 'water') return { ok: false, error: 'No puedes desplegar en el agua.' };
+    if (data.domain === 'ground' && !groundPassable(point.x, point.y, game.map)) return { ok: false, error: 'El punto de despliegue está ocupado por agua o un edificio.' };
     player.credits -= data.cost;
     const unit = spawn(game, player, command.unitType, point);
     emit(game, 'deploy', { unitId: unit.id, team: player.team, x: unit.x, y: unit.y });
     return { ok: true, unitId: unit.id };
   }
-  const supported = ['move', 'attackMove', 'stop', 'unload', 'load', 'resupply', 'smoke', 'fire'];
+  const supported = ['move', 'attackMove', 'stop', 'unload', 'load', 'resupply', 'smoke', 'fire', 'garrison', 'exit'];
   if (!supported.includes(type)) return { ok: false, error: 'Orden desconocida.' };
   if (!Array.isArray(command.unitIds) || !command.unitIds.length || command.unitIds.length > game.config.maxUnits || command.unitIds.some(id => typeof id !== 'string')) return { ok: false, error: 'Selecciona tus unidades.' };
   const ids = [...new Set(command.unitIds)];
@@ -370,7 +537,30 @@ export function applyCommand(game, playerId, command) {
   if (units.some(u => !u || u.ownerId !== playerId)) return { ok: false, error: 'Solo puedes dar órdenes a tus propias unidades.' };
   if (['move', 'attackMove', 'smoke', 'fire'].includes(type) && !pointOK(command, game.map)) return { ok: false, error: 'Destino no válido.' };
   if (units.some(u => u.loadedIn) && type !== 'unload') return { ok: false, error: 'Desembarca primero a la infantería.' };
+  if (['move', 'attackMove', 'resupply'].includes(type)) {
+    const exits = [];
+    for (const unit of units.filter(unit => unit.garrisonedIn)) {
+      const point = exteriorPosition(game, unit, buildingFor(game, unit.garrisonedIn), exits.map(exit => exit.point));
+      if (!point) return { ok: false, error: 'Los accesos de salida están bloqueados por otras unidades.' };
+      exits.push({ unit, point });
+    }
+    for (const { unit, point } of exits) leaveBuilding(game, unit, point);
+  }
+  if (type === 'garrison') return garrisonCommand(game, units, command.buildingId);
+  if (type === 'exit') {
+    if (units.some(unit => !unit.garrisonedIn && !unit.pendingBuildingId)) return { ok: false, error: 'Selecciona las tropas que ocupan un edificio o se dirigen a él.' };
+    const plans = [];
+    for (const unit of units) {
+      const building = buildingFor(game, unit.garrisonedIn);
+      const point = building ? exteriorPosition(game, unit, building, plans.map(plan => plan.point).filter(Boolean)) : null;
+      if (building && !point) return { ok: false, error: 'Los accesos de salida están bloqueados por otras unidades.' };
+      plans.push({ unit, point });
+    }
+    for (const { unit, point } of plans) { if (unit.garrisonedIn) leaveBuilding(game, unit, point); setOrder(game, unit, 'stop'); }
+    return { ok: true };
+  }
   if (type === 'load') {
+    if (units.some(unit => unit.garrisonedIn)) return { ok: false, error: 'Sal del edificio antes de embarcar.' };
     const transport = game.units.find(u => u.id === command.transportId && alive(u));
     if (!transport || transport.ownerId !== playerId || !UNIT_TYPES[transport.type].capacity) return { ok: false, error: 'Selecciona un transporte propio.' };
     if (units.some(u => u.type !== 'infantry') || units.length + transport.cargo.length > UNIT_TYPES[transport.type].capacity) return { ok: false, error: 'Solo caben dos escuadras de infantería.' };
@@ -431,9 +621,8 @@ function targetAllowed(unit, target) {
 
 function validTarget(game, unit, target, visibility) {
   if (!target || !alive(target) || target.team === unit.team || !visibility.has(target.id) || !targetAllowed(unit, target)) return false;
-  const data = UNIT_TYPES[unit.type], distance = dist(unit, target);
-  if (distance > data.range || distance < (data.minRange || 0)) return false;
-  return unit.type === 'artillery' || sightClear(game, unit, target, UNIT_TYPES[target.type].domain);
+  if (dist(unit, target) > UNIT_TYPES[unit.type].range + (unit.garrisonedIn || target.garrisonedIn ? 180 : 0)) return false;
+  return Boolean(firingSolution(game, unit, target));
 }
 
 function chooseTarget(game, unit, visibility) {
@@ -483,14 +672,16 @@ function updateEngagement(game, unit, enemy) {
 
 function damageUnit(game, unit, raw, attacker, area = false) {
   if (unit.hp <= 0) return;
-  const data = UNIT_TYPES[unit.type], land = terrainAt(unit.x, unit.y, game.map);
-  const cover = data.domain === 'air' ? 1 : land === 'forest' ? (unit.type === 'infantry' ? 0.5 : 0.78) : land === 'town' ? (unit.type === 'infantry' ? 0.4 : 0.72) : 1;
+  const data = UNIT_TYPES[unit.type], land = terrainAt(unit.x, unit.y, game.map), vegetation = vegetationAt(game.map, unit.x, unit.y);
+  const occupied = buildingFor(game, unit.garrisonedIn);
+  const cover = occupied ? clamp(occupied.protection, 0.1, 1) : data.domain === 'air' ? 1 : vegetation ? vegetation.cover[unit.type === 'infantry' ? 'infantry' : 'ground'] : land === 'town' ? (unit.type === 'infantry' ? 0.85 : 0.92) : 1;
   const antiArmor = ['tank', 'helicopter', 'jet', 'artillery'].includes(attacker.type) ? 0.58 : attacker.type === 'infantry' && dist(unit, attacker) < 100 ? 0.65 : 1;
   const impact = Math.max(raw * 0.13, raw - data.armor * antiArmor) * cover;
   unit.hp = Math.max(0, unit.hp - impact);
   unit.suppression = clamp(unit.suppression + (area ? 0.39 : 0.11 + impact / data.hp * 0.3), 0, 1);
   emit(game, 'hit', { x: unit.x, y: unit.y, team: unit.team, unitId: unit.id, damage: Math.round(impact), sourceType: attacker.type });
   if (unit.hp <= 0) {
+    unit.garrisonedIn = null; unit.pendingBuildingId = null;
     emit(game, 'destroy', { x: unit.x, y: unit.y, team: unit.team, unitId: unit.id, unitType: unit.type });
     for (const id of unit.cargo) {
       const passenger = game.units.find(u => u.id === id);
@@ -502,10 +693,12 @@ function damageUnit(game, unit, raw, attacker, area = false) {
 
 function shoot(game, unit, target, coordinate = false) {
   const data = UNIT_TYPES[unit.type];
+  const solution = coordinate ? { origin: unit, target } : firingSolution(game, unit, target);
+  if (!solution) return;
   unit.ammo = Math.max(0, unit.ammo - 1);
   unit.cooldown = data.reload * (1 + unit.suppression * 1.8);
   unit.lastShot = game.time;
-  unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
+  unit.heading = Math.atan2(solution.target.y - solution.origin.y, solution.target.x - solution.origin.x);
   if (unit.type === 'artillery') {
     const angle = random(game) * Math.PI * 2, spread = 12 + random(game) * 30;
     const x = clamp(target.x + Math.cos(angle) * spread, 0, game.map.width), y = clamp(target.y + Math.sin(angle) * spread, 0, game.map.height);
@@ -515,7 +708,7 @@ function shoot(game, unit, target, coordinate = false) {
   }
   const accuracy = clamp(0.9 - unit.suppression * 0.5 - (unit.moving ? 0.19 : 0) - (target.moving && UNIT_TYPES[target.type].domain === 'air' ? 0.08 : 0), 0.18, 0.94);
   const hit = random(game) < accuracy;
-  emit(game, 'shot', { x: unit.x, y: unit.y, tx: target.x, ty: target.y, team: unit.team, unitType: unit.type, hit });
+  emit(game, 'shot', { x: solution.origin.x, y: solution.origin.y, tx: solution.target.x, ty: solution.target.y, team: unit.team, unitType: unit.type, hit });
   if (hit && !coordinate) damageUnit(game, target, data.damage * (0.9 + random(game) * 0.2), unit);
   else if (!coordinate) target.suppression = clamp(target.suppression + 0.055, 0, 1);
 }
@@ -523,11 +716,11 @@ function shoot(game, unit, target, coordinate = false) {
 function updateMovement(game, unit, dt) {
   const data = UNIT_TYPES[unit.type];
   unit.moving = false;
-  if (!unit.path.length || unit.combatPaused) return;
+  if (!unit.path.length || unit.combatPaused || unit.garrisonedIn) return;
   let point = unit.path[0], distance = dist(unit, point);
   if (unit.order === 'resupply' && unit.path.length === 1 && distance < 58) { unit.path = []; return; }
-  const land = terrainAt(unit.x, unit.y, game.map);
-  const modifier = data.domain === 'air' ? 1 : land === 'road' ? 1.38 : land === 'forest' ? (unit.type === 'infantry' ? 0.82 : 0.5) : land === 'town' ? (unit.type === 'infantry' ? 0.9 : 0.65) : 1;
+  const land = terrainAt(unit.x, unit.y, game.map), vegetation = vegetationAt(game.map, unit.x, unit.y);
+  const modifier = data.domain === 'air' ? 1 : land === 'road' ? 1.38 : vegetation ? vegetation.movement[unit.type === 'infantry' ? 'infantry' : 'ground'] : land === 'town' ? (unit.type === 'infantry' ? 0.9 : 0.65) : 1;
   const speed = data.speed * modifier * (1 - unit.suppression * 0.77);
   let remaining = speed * dt;
   unit.moving = true;
@@ -619,6 +812,20 @@ function updateAI(game) {
       continue;
     }
     if (unit.order === 'resupply' && (unit.hp < data.hp * 0.75 || unit.ammo < data.ammo * 0.65)) continue;
+    if (unit.type === 'infantry') {
+      const occupied = buildingFor(game, unit.garrisonedIn);
+      if (occupied && (enemies.some(enemy => dist(unit, enemy) < data.range + 80) || game.sectors.some(sector => dist(unit, sector) < sector.radius + 80 && (sector.owner !== ai.team || sector.contested)))) continue;
+      if (unit.pendingBuildingId && unit.path.length) continue;
+      const positions = (game.map.buildings || []).filter(building => {
+        if (!building.capacity || building.occupiable === false) return false;
+        const center = { x: building.x + building.w / 2, y: building.y + building.h / 2 };
+        if (dist(unit, center) > 360) return false;
+        const useful = game.sectors.some(sector => dist(center, sector) < sector.radius + 70 && (sector.owner !== ai.team || sector.contested)) || enemies.some(enemy => dist(center, enemy) < data.range);
+        const members = buildingMembers(game, building.id).filter(other => other.id !== unit.id);
+        return useful && members.length < building.capacity && members.every(other => other.team === unit.team);
+      }).sort((a, b) => dist(unit, { x: a.x + a.w / 2, y: a.y + a.h / 2 }) - dist(unit, { x: b.x + b.w / 2, y: b.y + b.h / 2 }));
+      if (positions[0] && applyCommand(game, ai.id, { type: 'garrison', unitIds: [unit.id], buildingId: positions[0].id }).ok) continue;
+    }
     if (unit.combatPaused) continue;
     if (unit.type === 'supply') {
       if (unit.stock < 50) { setOrder(game, unit, 'move', game.map.spawns[unit.team]); continue; }
@@ -661,6 +868,7 @@ export function stepGame(game, dt = 0.1) {
     const target = chooseTarget(game, unit, views[unit.team]);
     updateEngagement(game, unit, target);
     updateMovement(game, unit, dt);
+    arriveAtBuilding(game, unit);
     if (unit.cooldown <= 0 && unit.ammo >= 1 && unit.suppression < 0.97) {
       if (unit.type === 'artillery' && unit.order === 'fire' && unit.target) {
         const range = dist(unit, unit.target);
@@ -699,16 +907,30 @@ export function snapshotFor(game, playerId) {
       combatPaused: ownTeam ? u.combatPaused : null,
       combatTargetId: ownTeam ? u.combatTargetId : null,
       cargo: ownTeam ? [...u.cargo] : [], loadedIn: ownTeam ? u.loadedIn : null,
+      garrisonedIn: u.garrisonedIn || null, pendingBuildingId: ownTeam ? u.pendingBuildingId || null : null,
       stock: ownTeam ? round(u.stock) : null, smoke: ownTeam ? u.smoke : null,
       moving: u.moving, terrainType: terrainAt(u.x, u.y, game.map),
     };
   });
-  const events = game.events.filter(e => ['capture', 'victory'].includes(e.type) || e.team === player.team || (Number.isFinite(e.x) && pointVisible(game, player.team, e))).map(e => ({ ...e }));
+  const events = game.events.filter(e => ['garrison', 'exit'].includes(e.type) ? e.team === player.team || visible.has(e.unitId) : ['capture', 'victory'].includes(e.type) || e.team === player.team || (Number.isFinite(e.x) && pointVisible(game, player.team, e))).map(e => ({ ...e }));
+  const buildings = (game.map.buildings || []).map(building => {
+    const members = buildingMembers(game, building.id);
+    const ownMembers = members.filter(unit => unit.team === player.team);
+    const detected = members.filter(unit => unit.garrisonedIn === building.id && visible.has(unit.id));
+    const known = ownMembers.length > 0;
+    return {
+      id: building.id, team: known ? player.team : detected[0]?.team ?? null,
+      known, observed: detected.length > 0,
+      occupied: known ? ownMembers.filter(unit => unit.garrisonedIn === building.id).length : detected.length || null,
+      reserved: known ? ownMembers.filter(unit => unit.pendingBuildingId === building.id).length : null,
+      occupantIds: (known ? ownMembers.filter(unit => unit.garrisonedIn === building.id) : detected).map(unit => unit.id),
+    };
+  });
   return {
     tick: game.tick, time: round(game.time), duration: game.duration, mode: game.mode,
     config: { ...game.config }, mapId: game.map.id,
     status: game.status, winner: game.winner, reason: game.reason,
-    playerId: player.id, team: player.team, units,
+    playerId: player.id, team: player.team, units, buildings,
     players: game.players.map(p => ({ id: p.id, name: p.name, team: p.team, credits: p.team === player.team ? round(p.credits) : null, ai: p.ai, surrendered: p.surrendered, deck: p.id === player.id ? [...p.deck] : undefined })),
     sectors: game.sectors.map(s => ({ ...s, progress: round(s.progress) })), tickets: game.tickets.map(round), events,
     smokes: game.smokes.filter(s => s.team === player.team || pointVisible(game, player.team, s)).map(s => ({ ...s })),
