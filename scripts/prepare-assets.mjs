@@ -52,7 +52,8 @@ export async function prepareAssets() {
   if (!/^const BUILD_REVISION = '[^']+';$/m.test(worker)) throw new Error('Falta el marcador de versión en public/sw.js.');
   const workerTemplate = worker.replace(/^const BUILD_REVISION = '[^']+';$/m, "const BUILD_REVISION = 'generated';");
   const revision = hash(JSON.stringify(entries) + workerTemplate).slice(0, 20);
-  const manifest = { version: '0.1.0', revision, files: entries };
+  const { version } = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+  const manifest = { version, revision, files: entries };
   await writeFile(resolve(root, 'public', 'precache.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(workerPath, worker.replace(/^const BUILD_REVISION = '[^']+';$/m, `const BUILD_REVISION = '${revision}';`));
   console.log(`Archivos locales y PWA preparados: ${entries.length} recursos, versión ${revision}.`);
